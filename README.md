@@ -19,6 +19,64 @@ We can think of this "packet" as a process waiting for kernel shaders.  Hey, wou
 # vectorspace and boolean
 In the traditional SQL world, a query would arrive, and this record would either qualify, or not. Where Facility = 'Downtown Clinic' or Hemoglobin > 11.3 g/dL.  Simple boolean.  1 or 0, true or false. I would suggest that we use a vectorspace model, allowing dimensionality to consist of 0 to 1.. so you can have 0.5 values or other "similarity" results, in conjunction with boolean outcomes.  by adjusting a query to have a threshold of 1.0 of similarity, you become boolean.  By having  partial similarity, you can do things like clustering, thesaurus querying, and other less exact searches.  You can either use a simple vector, or even have the querying kernel shader define partial success by providing a score between 0 and 1.
 
+# functional style pattern matching
+in functional languages (Erlang style below), processing a list is accomplished by pattern matching. In psuedocode it might look like this:
+
+```
+assume we have a list of records so:
+
+[
+{resident, "Florida", "Patty"},
+{resident, "Illinois", "Mike"},
+{resident, "Illinois", "Joe"},
+{resident, "Georgia", "Erin"}
+]
+
+findIllinoisResidents(List) -> findIllinoisResidents(List,[]).
+
+findIllinoisResidents([{resident, "Illinois", Name}|TheRestOfTheList],Results) ->
+           findIllinoisResidents(TheRestOfTheList,[{resident, "Illinois", Name}|Results]);
+findIllinoisResidents([_DontCareAboutThis|TheRestOfTheList],Results) ->
+           findIllinoisResidents(TheRestOfTheList,Results);
+findIllinoisResidents([],Results)-> Results.
+
+```
+We have a series of functions that look the same, each saying "If THE FIRST ITEM" of a list looks like X, then I want to process that item. I then recursively call my functions again with the rest of that list. The pattern matching then goes down until it finds a pattern that fits the next item.  Above, I have four scenarios:  
+1. The function the user is likely to call with a generic list. It then preps a place for results, and calls the actual working functions.
+2. A list where theres an atom (like a keyword) for resident and a matching string for "Illinois", we want to append this to the Results, and keep looping
+3. A list where the first item wasn't handled by #2 above, just keep looking
+4. The function is called with an empty list
+
+Each step, the list gets shorter, and the results gets longer, until the results are handed back.  The REALLY cool thing, is that we can keep the list order the same, and break this up over multiple processes, running many many threads (even on remote machines), as long as they are re-assembled in the same order.
+
+If we design our kernel this way, asking the data blocks ONLY for the relevant fields we care about, we can skip a lot of this syntactic sugar... we just assume, by default that any case not explicitly in the matching query is a "don't care"/ignore.  There are other cases here not explained, but the general idea is that we want to be able to define what a record should look like (except in JSON or as a struct), and get records back that fit that category based on our 0.0-1.0 matching.
+
+In the case of JSON
+```
+{resident:"Illinois"}
+```
+or C-structs
+
+```
+struct Customer {
+    int id;
+    char* name;
+    char* resident;
+};
+
+{1,"John Q Public","Illinois"}
+```
+
+So, we have three stages:  
+1. Simple pattern matching handled before the kernel is executed.
+2. Determining a score/applicability (kernel)
+3. Returning Modified results (kernel - not addressed yet)
+
+
+
+
+
+
 
 
 
