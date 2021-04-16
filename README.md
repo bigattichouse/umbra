@@ -73,6 +73,27 @@ So, we have three stages:
 3. Returning Modified results (kernel - not addressed yet)
 
 
+# URIs can provide us user information
+
+We plan on every record having a UUID (even copies of the record).. some big ol' hash (SHA512?) random beast.  Great. Now we need to find that record.  Perhaps we look for a patient by ID.
+
+```
+json://myserver/patients/[UUID]
+
+```
+I'm using JSON, because why not just come out and say it in the protocol field. json implies REST based http.  I could put MySQL: or SQL: or CSV: ... this is like a contract. "I want to access data at this location using this method"
+
+but what if I want to see patients at a facility?
+
+```
+json://myserver/facilities/Downtown Clinic/patients/[UUID]
+
+```
+This, to the caller, looks like a logical path - but to the server I know what I need an index on facilities!  Perhaps we could at least log this (Warning: create index facilities )  /patients could give me a list of patients at the given facility, while /patients/UUID gives me a specific patient. Or we could rely on post/get args to filter:
+```
+json://myserver/facilities/Downtown Clinic/patients/?name=Michael Johnson
+```
+
 
 
 
