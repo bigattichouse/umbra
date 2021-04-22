@@ -24,6 +24,7 @@ Here's a list of assertions about the final system:
     2. Indices: Once the guard allows a query to process, the main indices (based on URI) are used to locate the records affected. 
     3. Shader/List:  executable code that runs against a given record (or group of records) and returns one or more records. These could be a simple boolean (city="Chicago") or a vectorspace score (0 to 1). This is operations on the list of all records allowed by the Guard/Index. May be used to sort the results, or call functions to process the patterns.
     4. Shader/Patterns:  the shader will have a list of "registered" patterns, like a switch.  The list is called similar to pattern matching in Erlang, starting at the top of the list. Results are stored in an outbound list (which could consist of a single item, say for Sum() operations)
-10. Results will return a record, in the appropriate order, along with a score. Simple boolean responses would be 1|0 default is {1,{some record}}
-    
+12. Results will return a record, in the appropriate order, along with a score. Simple boolean responses would be 1|0 default is {1,{some record}}
+13. System will use JSON schemas to define storage:  https://json-schema.org/understanding-json-schema/structuring.html
+  
     
