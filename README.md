@@ -26,5 +26,6 @@ Here's a list of assertions about the final system:
     4. Shader/Patterns:  the shader will have a list of "registered" patterns, like a switch.  The list is called similar to pattern matching in Erlang, starting at the top of the list. Results are stored in an outbound list (which could consist of a single item, say for Sum() operations)
 12. Results will return a record, in the appropriate order, along with a score. Simple boolean responses would be 1|0 default is {1,{some record}}
 13. System will use JSON schemas to define storage:  https://json-schema.org/understanding-json-schema/structuring.html
-  
+14. Primary record (patient/user/whatever) with a JSON "informational" store, and time series data, along with relationship/graph links to other similar records.
+15. "Low info" version of the primary record, and "detailed" version. configurable for bandwidth/aggregation
     
