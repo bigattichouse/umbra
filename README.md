@@ -28,4 +28,5 @@ Here's a list of assertions about the final system:
 13. System will use JSON schemas to define storage:  https://json-schema.org/understanding-json-schema/structuring.html
 14. Primary record (patient/user/whatever) with a JSON "informational" store, and time series data, along with relationship/graph links to other similar records.
 15. "Low info" version of the primary record, and "detailed" version. configurable for bandwidth/aggregation
-    
+16. Indices are great for finding data, and sorting data, but if we're "don't read often", why not create shaders for commom summary indices? Store this output in the database.  "Patient's most recent visit", "Patient's most recent weight/height/Hgb", "Summary (avg, mean, mode) of patients linked to facility X during MM/YY" - it would cost us more in storage, but ultimately less in carbon footprint by just having those summaries already made since they'd only get made once (or when old data is delta/updated)
+
