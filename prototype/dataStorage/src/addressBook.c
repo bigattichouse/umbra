@@ -2,6 +2,8 @@
 #include <stdlib.h>
 
 #include "addressBook.h"
+#include "addressBookPermission.h"
+
 
 int main(int argc, char *argv[] ) {
    // printf() displays the string inside quotation

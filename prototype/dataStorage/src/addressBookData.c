@@ -1,7 +1,5 @@
 #include "addressBook.h"
-
-struct Permission readOnly[] = {{"read",1},{"write",0}};
-struct Permission readWrite[] = {{"read",1},{"write",1}};
+#include "addressBookPermission.h"
 
 struct leaf Customers[1000000] = {
 {{"0","John Q Public0","Chenoa", readOnly }},
