@@ -4,7 +4,7 @@
 
 long long unsigned int CustomersSize = 5;
 
-struct Customers CustomersData[1000000] =  {
+struct Customers CustomersData[] =  {
 {"0","John Q Public0","Chenoa", readOnly ,{0.1,0,0,0,0}},
 {"1","John Q Public1","Chenoa", readOnly ,{0.1,0,0,0,0}},
 {"2","John Q Public2","Chenoa", readOnly ,{0.1,0,0,0,0}},
