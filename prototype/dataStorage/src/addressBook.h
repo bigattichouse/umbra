@@ -1,13 +1,14 @@
-struct Customer {
+struct Customers {
     char* uuid;
     char* name;
     char* city;
     struct Permission* permissions;
+    struct umbraMetadata metadata;
 };
 
-struct leaf {
-   struct Customer record;
+struct CustomersDB {
+   long long unsigned int size;
+   struct Customers* Customers;
 };
 
-
-struct leaf *_Customers(int page);
+struct CustomersDB _Customers(int page);
