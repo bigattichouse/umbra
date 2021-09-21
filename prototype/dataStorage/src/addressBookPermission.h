@@ -5,3 +5,4 @@ struct Permission {
 
 extern struct Permission readOnly[];
 extern struct Permission readWrite[];
+extern struct Permission readWriteExec[];
