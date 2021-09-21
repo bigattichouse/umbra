@@ -1,20 +1,15 @@
 #include "umbraMetadata.h"
 #include "addressBook.h"
 #include "addressBookPermission.h"
+#include "addressBookDataPages.h"
 
-long long unsigned int CustomersSize = 5;
-
-struct Customers CustomersData[] =  {
-{"0","John Q Public0","Chenoa", readOnly ,{0.1,0,0,0,0}},
-{"1","John Q Public1","Chenoa", readOnly ,{0.1,0,0,0,0}},
-{"2","John Q Public2","Chenoa", readOnly ,{0.1,0,0,0,0}},
-{"3","John Q Public3","Chenoa", readOnly ,{0.1,0,0,0,0}},
-{"4","John Q Public4","Chenoa", readWriteExec ,{0.1,0,0,0,0}}
-};
+long long unsigned int _CustomerPageCount(){
+  return CustomerPageCount;
+}
 
 struct CustomersDB _Customers(int page){
    struct CustomersDB DB;
-   DB.size = CustomersSize;
-   DB.Customers = CustomersData;
+   DB.size = CustomersPages[page].size;
+   DB.Customers = CustomersPages[page].Customers;
    return DB;
 }

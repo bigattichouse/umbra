@@ -11,4 +11,5 @@ struct CustomersDB {
    struct Customers* Customers;
 };
 
+long long unsigned int _CustomerPageCount();
 struct CustomersDB _Customers(int page);
