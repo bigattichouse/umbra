@@ -7,6 +7,7 @@ struct Customers_Page {
 #include "addressBookData_1.h"
 
 long long unsigned int CustomerPageCount = 2;
+long long unsigned int CustomerPageMaxSize = 65535; //only allow 64k records per page
 
 struct Customers_Page CustomersPages[] = {
   {CustomersSize_0,CustomersData_0},
