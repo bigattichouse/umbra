@@ -1,3 +1,2 @@
-gcc addressBook.c addressBookData.c addressBookPermission.c -o addressBook
-./addressBook
-
+gcc addressBook.c addressBookData.c addressBookPermission.c -o umbra.addressBook
+./umbra.addressBook
