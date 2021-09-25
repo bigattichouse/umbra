@@ -26,3 +26,6 @@ struct CustomersDB _Customers(int page){
    DB.Customers = CustomersPages[page].Customers;
    return DB;
 }
+
+
+// END with NULL to know where to stop, also dynamically load the pages instead of compiling them into the app.
