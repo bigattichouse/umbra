@@ -33,7 +33,7 @@ int main(int argc, char *argv[] ) {
         return EXIT_FAILURE;
    }
 
-   *(void**)(&load_page) = dlsym(handle, "load_page");
+   *(void**)(&load_page) = dlsym(handle, "pageCount");
     if (!func_print_name) {
         /* no such symbol */
         fprintf(stderr, "Error: %s\n", dlerror());
