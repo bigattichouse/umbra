@@ -1,10 +1,12 @@
 
+#include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 
-#include "umbraMetadata.h"
-#include "addressBook.h"
+#include "schema/umbraMetadata.h"
+#include "schema/addressBookPermission.h"
+#include "schema/addressBook.h"
 
 /*
 This is the shared library that counts and dynamically loads data pages,
@@ -21,9 +23,9 @@ we'll go up one level
 
 int main(int argc, char *argv[] ) {
    void *handle;
-   void (*count)();
-   void (*read)();
-   Customers *data;
+   int (*count)();
+   struct Customers *(*read)();
+   struct Customers *data;
 
    handle = dlopen("bin/addressBookData.0.so", RTLD_LAZY);
 
@@ -35,16 +37,16 @@ int main(int argc, char *argv[] ) {
         return EXIT_FAILURE;
    }
 
-   *(void**)(&count) = dlsym(handle, "count");
-    if (!func_print_name) {
+   *(int **)(&count) = dlsym(handle, "count");
+    if (!count) {
         /* no such symbol */
         fprintf(stderr, "Error: %s\n", dlerror());
         dlclose(handle);
         return EXIT_FAILURE;
     }
 
-    *(void**)(&read) = dlsym(handle, "read");
-     if (!func_print_name) {
+    *(struct Customers **)(&read) = dlsym(handle, "read");
+     if (!read) {
          /* no such symbol */
          fprintf(stderr, "Error: %s\n", dlerror());
          dlclose(handle);
@@ -53,11 +55,11 @@ int main(int argc, char *argv[] ) {
 
     int records = count();
     data = read(0);
-    Customer *rec;
-    pos = 0;
+    struct Customers *rec;
+    int pos = 0;
 
     while((rec = read(pos))!=NULL){
-      printf("%d.Name = %s\n",pos,rec.name);
+      printf("%d.Name = %s\n",pos,rec->name);
       pos++;
     }
 
