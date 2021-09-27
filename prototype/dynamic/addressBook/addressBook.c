@@ -62,9 +62,13 @@ struct addressBookDynamicPage loadPage(int page){
   return loaded;
 }
 
+int unload_page(struct addressBookDynamicPage page){
+      return dlclose(page.handle);
+}
+
 int main(int argc, char *argv[] ) {
     struct Customers *data;
-    struct addressBookDynamicPage page = loadPage(1);
+    struct addressBookDynamicPage page = loadPage(0);
     if(page.error>0){
       return page.error;
     }
@@ -78,7 +82,7 @@ int main(int argc, char *argv[] ) {
       pos++;
     }
 
-    dlclose(page.handle);
+    unload_page(page);
 
     return EXIT_SUCCESS;
 
