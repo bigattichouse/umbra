@@ -18,6 +18,8 @@ Later this will include inserts and updates, for now just read only.
 For now, this will just be a simple C program to load the relevant pages, then
 we'll go up one level
 
+Now to add a dynamically compiled/loaded kernel that queries the table (no indices yet, just table scans)
+
 */
 
 //gcc addressBook.c -o addressBook -ldl
