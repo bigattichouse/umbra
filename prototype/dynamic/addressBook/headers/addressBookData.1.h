@@ -6,3 +6,6 @@ struct Customers CustomersData_1[] =  {
 , NULL //ending with NULL gives me a way to stop when I don't have the count. like /0 in char *
 
 };
+
+int count(void);
+struct Customers *read(int pos);

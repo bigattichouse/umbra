@@ -9,4 +9,3 @@ struct Customers {
     struct Permission* permissions;
     struct umbraMetadata metadata;
 };
-
