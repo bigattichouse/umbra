@@ -1,0 +1,108 @@
+# Build artifacts
+build/
+*.o
+*.a
+*.so
+*.d
+
+# Test database directories
+test_db/
+test_database/
+umbra_db/
+
+# Compiled pages and kernels
+*.dat
+compiled/
+
+# Generated files
+*.log
+*.out
+
+# Core dumps
+core
+core.*
+*.core
+
+# Editor backup and swap files
+*~
+*.swp
+*.swo
+*.bak
+.*.swp
+.*.swo
+
+# IDE directories
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS specific files
+.DS_Store
+Thumbs.db
+*.DS_Store
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Local configuration
+*.local
+.env
+
+# Coverage reports
+*.gcov
+*.gcda
+*.gcno
+coverage/
+lcov/
+
+# Profiling data
+gmon.out
+*.prof
+*.profraw
+*.profdata
+
+# Memory check outputs
+valgrind-*.log
+*.memcheck
+
+# Documentation build
+docs/_build/
+docs/html/
+docs/latex/
+doxygen/
+
+# Python cache (if you have any Python scripts)
+__pycache__/
+*.pyc
+*.pyo
+
+# Backup directories
+backup/
+backups/
+*.backup
+
+# Log files
+logs/
+*.log.[0-9]*
+
+# Database specific ignores
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Generated SQL files (if any)
+generated_sql/
+
+# Umbra specific compiled data
+pages/
+kernels/
