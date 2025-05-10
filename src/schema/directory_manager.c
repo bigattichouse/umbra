@@ -48,7 +48,7 @@ int initialize_database_directory(const char* base_dir) {
     }
     
     // Create subdirectories
-    char path[1024];
+    char path[2048];
     
     // Tables directory (to store table metadata)
     snprintf(path, sizeof(path), "%s/tables", base_dir);
@@ -85,21 +85,21 @@ int create_table_directory(const char* table_name, const char* base_dir) {
     }
     
     // Create table directory
-    char table_dir[1024];
+    char table_dir[2048];
     snprintf(table_dir, sizeof(table_dir), "%s/tables/%s", base_dir, table_name);
     if (create_directory_if_not_exists(table_dir) != 0) {
         return -1;
     }
     
     // Create data directory
-    char data_dir[1024];
+    char data_dir[2048];
     snprintf(data_dir, sizeof(data_dir), "%s/data", table_dir);
     if (create_directory_if_not_exists(data_dir) != 0) {
         return -1;
     }
     
     // Create source directory
-    char src_dir[1024];
+    char src_dir[2048];
     snprintf(src_dir, sizeof(src_dir), "%s/src", table_dir);
     if (create_directory_if_not_exists(src_dir) != 0) {
         return -1;
@@ -116,7 +116,7 @@ bool table_directory_exists(const char* table_name, const char* base_dir) {
         return false;
     }
     
-    char table_dir[1024];
+    char table_dir[2048];
     snprintf(table_dir, sizeof(table_dir), "%s/tables/%s", base_dir, table_name);
     
     struct stat st;
@@ -137,7 +137,7 @@ int get_table_directory(const char* table_name, const char* base_dir,
     }
     
     int written = snprintf(output, output_size, "%s/tables/%s", base_dir, table_name);
-    if (written < 0 || written >= output_size) {
+    if (written < 0 || (size_t)written >= output_size) {
         return -1;
     }
     
@@ -154,7 +154,7 @@ int get_data_directory(const char* table_name, const char* base_dir,
     }
     
     int written = snprintf(output, output_size, "%s/tables/%s/data", base_dir, table_name);
-    if (written < 0 || written >= output_size) {
+    if (written < 0 || (size_t)written >= output_size) {
         return -1;
     }
     
@@ -171,7 +171,7 @@ int get_source_directory(const char* table_name, const char* base_dir,
     }
     
     int written = snprintf(output, output_size, "%s/tables/%s/src", base_dir, table_name);
-    if (written < 0 || written >= output_size) {
+    if (written < 0 || (size_t)written >= output_size) {
         return -1;
     }
     

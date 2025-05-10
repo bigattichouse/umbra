@@ -212,7 +212,7 @@ bool validate_value(const char* value, DataType type, int length) {
             return is_valid_int(value);
         
         case TYPE_VARCHAR:
-            return strlen(value) <= length;
+            return (int)strlen(value) <= length;
         
         case TYPE_TEXT:
             return true; // No validation for TEXT

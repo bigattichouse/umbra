@@ -14,6 +14,7 @@
  * @brief Convert a data type to C type string
  */
 static const char* data_type_to_c_type(DataType type, int length) {
+    (void)length; // Suppress unused parameter warning
     switch (type) {
         case TYPE_INT:
             return "int";
@@ -49,7 +50,7 @@ int generate_struct_definition(const TableSchema* schema, char* output, size_t o
         "typedef struct {\n", 
         schema->name, schema->name);
     
-    if (written < 0 || written >= output_size) {
+    if (written < 0 || (size_t)written >= output_size) {
         return -1;
     }
     
@@ -61,7 +62,7 @@ int generate_struct_definition(const TableSchema* schema, char* output, size_t o
         int col_written = snprintf(output + written, output_size - written,
             "    /* Column: %s */\n", column->name);
         
-        if (col_written < 0 || col_written >= output_size - written) {
+        if (col_written < 0 || (size_t)col_written >= output_size - written) {
             return -1;
         }
         
@@ -80,7 +81,7 @@ int generate_struct_definition(const TableSchema* schema, char* output, size_t o
                 "    %s %s;\n", c_type, column->name);
         }
         
-        if (col_written < 0 || col_written >= output_size - written) {
+        if (col_written < 0 || (size_t)col_written >= output_size - written) {
             return -1;
         }
         
@@ -91,7 +92,7 @@ int generate_struct_definition(const TableSchema* schema, char* output, size_t o
     int end_written = snprintf(output + written, output_size - written,
         "} %s;\n", schema->name);
     
-    if (end_written < 0 || end_written >= output_size - written) {
+    if (end_written < 0 || (size_t)end_written >= output_size - written) {
         return -1;
     }
     
@@ -135,7 +136,7 @@ int generate_header_file(const TableSchema* schema, const char* directory) {
     }
     
     // Create header file path
-    char header_path[1024];
+    char header_path[2048];
     snprintf(header_path, sizeof(header_path), "%s/%s.h", directory, schema->name);
     
     // Open header file
@@ -194,14 +195,14 @@ int generate_empty_data_page(const TableSchema* schema, const char* directory, i
     }
     
     // Create data directory
-    char data_dir[1024];
+    char data_dir[2048];
     snprintf(data_dir, sizeof(data_dir), "%s/data", directory);
     if (ensure_directory(data_dir) != 0) {
         return -1;
     }
     
     // Create data file path
-    char data_path[1024];
+    char data_path[2048];
     snprintf(data_path, sizeof(data_path), "%s/%sData.%d.dat.h", 
              data_dir, schema->name, page_number);
     
@@ -229,14 +230,14 @@ int generate_accessor_functions(const TableSchema* schema, const char* directory
     }
     
     // Create source directory
-    char src_dir[1024];
+    char src_dir[2048];
     snprintf(src_dir, sizeof(src_dir), "%s/src", directory);
     if (ensure_directory(src_dir) != 0) {
         return -1;
     }
     
     // Create source file path
-    char src_path[1024];
+    char src_path[2048];
     snprintf(src_path, sizeof(src_path), "%s/%sData_%d.c", 
              src_dir, schema->name, page_number);
     

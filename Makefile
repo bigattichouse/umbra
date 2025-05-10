@@ -3,7 +3,7 @@
 # Compiler and flags
 CC = gcc
 CFLAGS = -Wall -Wextra -g3 -O0 -I. -DDEBUG -fsanitize=address -fno-omit-frame-pointer
-LDFLAGS = -ldl -fsanitize=address
+LDFLAGS = -ldl -lreadline -fsanitize=address
 AR = ar
 ARFLAGS = rcs
 
@@ -31,14 +31,38 @@ LOADER_SRCS = $(SRC_DIR)/loader/so_loader.c \
               $(SRC_DIR)/loader/record_access.c \
               $(SRC_DIR)/loader/error_handler.c
 
+PARSER_SRCS = $(SRC_DIR)/parser/lexer.c \
+              $(SRC_DIR)/parser/select_parser.c \
+              $(SRC_DIR)/parser/ast.c
+
+KERNEL_SRCS = $(SRC_DIR)/kernel/kernel_generator.c \
+              $(SRC_DIR)/kernel/filter_generator.c \
+              $(SRC_DIR)/kernel/projection_generator.c \
+              $(SRC_DIR)/kernel/kernel_compiler.c \
+              $(SRC_DIR)/kernel/kernel_loader.c
+
+QUERY_SRCS = $(SRC_DIR)/query/query_executor.c \
+             $(SRC_DIR)/query/select_executor.c
+
+CLI_SRCS = $(SRC_DIR)/cli/cli_main.c \
+           $(SRC_DIR)/cli/interactive_mode.c \
+           $(SRC_DIR)/cli/command_mode.c \
+           $(SRC_DIR)/cli/result_formatter.c \
+           $(SRC_DIR)/cli/cli_commands.c \
+           $(SRC_DIR)/cli/command_history.c
+
 # All source files
-ALL_SRCS = $(SCHEMA_SRCS) $(PAGES_SRCS) $(LOADER_SRCS)
+ALL_SRCS = $(SCHEMA_SRCS) $(PAGES_SRCS) $(LOADER_SRCS) $(PARSER_SRCS) $(KERNEL_SRCS) $(QUERY_SRCS) $(CLI_SRCS)
 
 # Object files
 SCHEMA_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SCHEMA_SRCS))
 PAGES_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(PAGES_SRCS))
 LOADER_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(LOADER_SRCS))
-ALL_OBJS = $(SCHEMA_OBJS) $(PAGES_OBJS) $(LOADER_OBJS)
+PARSER_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(PARSER_SRCS))
+KERNEL_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(KERNEL_SRCS))
+QUERY_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(QUERY_SRCS))
+CLI_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(CLI_SRCS))
+ALL_OBJS = $(SCHEMA_OBJS) $(PAGES_OBJS) $(LOADER_OBJS) $(PARSER_OBJS) $(KERNEL_OBJS) $(QUERY_OBJS) $(CLI_OBJS)
 
 # Static library
 UMBRA_LIB = $(LIB_DIR)/libumbra.a
@@ -47,15 +71,18 @@ UMBRA_LIB = $(LIB_DIR)/libumbra.a
 TEST_SRCS = $(wildcard $(TEST_DIR)/*.c)
 TEST_BINS = $(patsubst $(TEST_DIR)/%.c,$(BIN_DIR)/%,$(TEST_SRCS))
 
+# Main executable
+UMBRA_CLI = $(BIN_DIR)/umbra
+
 # Default target
-all: $(UMBRA_LIB) tests
+all: $(UMBRA_LIB) $(UMBRA_CLI) tests
 
 # Create necessary directories
-$(BUILD_DIR) $(OBJ_DIR) $(LIB_DIR) $(BIN_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader:
+$(BUILD_DIR) $(OBJ_DIR) $(LIB_DIR) $(BIN_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader $(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli:
 	@mkdir -p $@
 
 # Build object files
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader $(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli
 	@echo "CC $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
@@ -71,6 +98,11 @@ $(BIN_DIR)/%: $(TEST_DIR)/%.c $(UMBRA_LIB) | $(BIN_DIR)
 
 # Build all tests
 tests: $(TEST_BINS)
+
+# Build main CLI executable - special handling to avoid conflict with test pattern
+$(UMBRA_CLI): $(SRC_DIR)/cli/cli_main.c $(UMBRA_LIB) | $(BIN_DIR)
+	@echo "CC $@"
+	@$(CC) $(CFLAGS) $(SRC_DIR)/cli/cli_main.c -o $@ -L$(LIB_DIR) -lumbra $(LDFLAGS)
 
 # Run all tests
 test: tests
@@ -124,14 +156,23 @@ info:
 	@echo "  Schema: $(SCHEMA_SRCS)"
 	@echo "  Pages: $(PAGES_SRCS)"
 	@echo "  Loader: $(LOADER_SRCS)"
+	@echo "  Parser: $(PARSER_SRCS)"
+	@echo "  Kernel: $(KERNEL_SRCS)"
+	@echo "  Query: $(QUERY_SRCS)"
+	@echo "  CLI: $(CLI_SRCS)"
 	@echo ""
 	@echo "Object files:"
 	@echo "  Schema: $(SCHEMA_OBJS)"
 	@echo "  Pages: $(PAGES_OBJS)"
 	@echo "  Loader: $(LOADER_OBJS)"
+	@echo "  Parser: $(PARSER_OBJS)"
+	@echo "  Kernel: $(KERNEL_OBJS)"
+	@echo "  Query: $(QUERY_OBJS)"
+	@echo "  CLI: $(CLI_OBJS)"
 	@echo ""
 	@echo "Test binaries: $(TEST_BINS)"
 	@echo "Library: $(UMBRA_LIB)"
+	@echo "CLI: $(UMBRA_CLI)"
 
 # Phony targets
 .PHONY: all clean tests test install uninstall info test_create_table debug_test valgrind_test
@@ -140,5 +181,5 @@ info:
 -include $(ALL_OBJS:.o=.d)
 
 # Generate dependency files
-$(OBJ_DIR)/%.d: $(SRC_DIR)/%.c | $(OBJ_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader
+$(OBJ_DIR)/%.d: $(SRC_DIR)/%.c | $(OBJ_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader $(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli
 	@$(CC) $(CFLAGS) -MM -MT $(@:.d=.o) $< > $@
