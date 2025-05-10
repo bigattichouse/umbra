@@ -118,7 +118,7 @@ int get_page_so_path(const char* base_dir, const char* table_name, int page_numb
     int written = snprintf(output, output_size, "%s/compiled/%sData_%d.so", 
                           base_dir, table_name, page_number);
     
-    if (written < 0 || written >= output_size) {
+    if (written < 0 || (size_t)written >= output_size) {
         return -1;
     }
     

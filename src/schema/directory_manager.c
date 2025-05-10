@@ -10,6 +10,9 @@
 #include <errno.h>
 #include "directory_manager.h"
 
+// Forward declarations for static functions
+static int create_directory_if_not_exists(const char* path);
+
 /**
  * @brief Create a directory if it doesn't exist
  */
@@ -171,6 +174,76 @@ int get_source_directory(const char* table_name, const char* base_dir,
     }
     
     int written = snprintf(output, output_size, "%s/tables/%s/src", base_dir, table_name);
+    if (written < 0 || (size_t)written >= output_size) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Get compiled directory path
+ */
+int get_compiled_directory(const char* base_dir, char* output, size_t output_size) {
+    if (!base_dir || !output || output_size <= 0) {
+        return -1;
+    }
+    
+    int written = snprintf(output, output_size, "%s/compiled", base_dir);
+    if (written < 0 || (size_t)written >= output_size) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Get path for a compiled shared object file
+ */
+int get_compiled_so_path(const char* table_name, int page_number, const char* base_dir,
+                        char* output, size_t output_size) {
+    if (!table_name || !base_dir || !output || output_size <= 0) {
+        return -1;
+    }
+    
+    int written = snprintf(output, output_size, "%s/compiled/%s.%d.so", 
+                          base_dir, table_name, page_number);
+    if (written < 0 || (size_t)written >= output_size) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Get path for a data header file
+ */
+int get_data_header_path(const char* table_name, int page_number, const char* base_dir,
+                        char* output, size_t output_size) {
+    if (!table_name || !base_dir || !output || output_size <= 0) {
+        return -1;
+    }
+    
+    int written = snprintf(output, output_size, "%s/tables/%s/data/%s.%d.dat.h", 
+                          base_dir, table_name, table_name, page_number);
+    if (written < 0 || (size_t)written >= output_size) {
+        return -1;
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Get path for a page source file
+ */
+int get_page_source_path(const char* table_name, int page_number, const char* base_dir,
+                        char* output, size_t output_size) {
+    if (!table_name || !base_dir || !output || output_size <= 0) {
+        return -1;
+    }
+    
+    int written = snprintf(output, output_size, "%s/tables/%s/src/%s.%d.c", 
+                          base_dir, table_name, table_name, page_number);
     if (written < 0 || (size_t)written >= output_size) {
         return -1;
     }

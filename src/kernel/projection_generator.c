@@ -61,7 +61,7 @@ int generate_projection_struct(const SelectStatement* stmt, const TableSchema* s
         " */\n"
         "typedef struct {\n");
     
-    if (written < 0 || written >= remaining) {
+    if (written < 0 || (size_t)written >= remaining) {
         return -1;
     }
     
@@ -92,7 +92,7 @@ int generate_projection_struct(const SelectStatement* stmt, const TableSchema* s
                     "    %s %s;\n", c_type, col_name);
             }
             
-            if (written < 0 || written >= remaining) {
+            if (written < 0 || (size_t)written >= remaining) {
                 return -1;
             }
             
@@ -103,7 +103,7 @@ int generate_projection_struct(const SelectStatement* stmt, const TableSchema* s
     
     written = snprintf(current, remaining, "} KernelResult;\n\n");
     
-    if (written < 0 || written >= remaining) {
+    if (written < 0 || (size_t)written >= remaining) {
         return -1;
     }
     
@@ -152,7 +152,7 @@ int generate_projection_assignment(const SelectStatement* stmt, const TableSchem
                     col_name, col_name);
             }
             
-            if (written < 0 || written >= remaining) {
+            if (written < 0 || (size_t)written >= remaining) {
                 return -1;
             }
             

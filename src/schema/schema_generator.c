@@ -195,14 +195,14 @@ int generate_empty_data_page(const TableSchema* schema, const char* directory, i
     }
     
     // Create data directory
-    char data_dir[2048];
+    char data_dir[4096];
     snprintf(data_dir, sizeof(data_dir), "%s/data", directory);
     if (ensure_directory(data_dir) != 0) {
         return -1;
     }
     
     // Create data file path
-    char data_path[2048];
+    char data_path[4096];
     snprintf(data_path, sizeof(data_path), "%s/%sData.%d.dat.h", 
              data_dir, schema->name, page_number);
     

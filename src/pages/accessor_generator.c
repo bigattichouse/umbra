@@ -19,13 +19,13 @@ int generate_accessor_file(const TableSchema* schema, const char* base_dir, int 
     }
     
     // Get source directory path
-    char src_dir[1024];
+    char src_dir[2048];
     if (get_source_directory(schema->name, base_dir, src_dir, sizeof(src_dir)) != 0) {
         return -1;
     }
     
-    // Create source file path
-    char src_path[1024];
+    // Create source file path - increase buffer size
+    char src_path[3072];
     snprintf(src_path, sizeof(src_path), "%s/%sData_%d.c", 
              src_dir, schema->name, page_number);
     
@@ -88,13 +88,13 @@ int generate_filtered_accessor(const TableSchema* schema, const char* base_dir,
     }
     
     // Get source directory path
-    char src_dir[1024];
+    char src_dir[2048];
     if (get_source_directory(schema->name, base_dir, src_dir, sizeof(src_dir)) != 0) {
         return -1;
     }
     
-    // Create source file path
-    char src_path[1024];
+    // Create source file path - increase buffer size
+    char src_path[3072];
     snprintf(src_path, sizeof(src_path), "%s/%sData_%d_filtered.c", 
              src_dir, schema->name, page_number);
     
@@ -261,13 +261,13 @@ int generate_projection_accessor(const TableSchema* schema, const char* base_dir
     }
     
     // Get source directory path
-    char src_dir[1024];
+    char src_dir[2048];
     if (get_source_directory(schema->name, base_dir, src_dir, sizeof(src_dir)) != 0) {
         return -1;
     }
     
-    // Create source file path
-    char src_path[1024];
+    // Create source file path - increase buffer size
+    char src_path[3072];
     snprintf(src_path, sizeof(src_path), "%s/%sData_%d_projection.c", 
              src_dir, schema->name, page_number);
     

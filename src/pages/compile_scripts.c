@@ -21,7 +21,7 @@ int generate_compilation_script(const TableSchema* schema, const char* base_dir,
     }
     
     // Create scripts directory
-    char scripts_dir[1024];
+    char scripts_dir[2048];
     snprintf(scripts_dir, sizeof(scripts_dir), "%s/scripts", base_dir);
     
     struct stat st;
@@ -36,8 +36,8 @@ int generate_compilation_script(const TableSchema* schema, const char* base_dir,
         return -1;
     }
     
-// Create script path
-    char script_path[1024];
+    // Create script path
+    char script_path[3072];
     if (get_compile_script_path(schema->name, base_dir, page_number, 
                                script_path, sizeof(script_path)) != 0) {
         return -1;
@@ -81,7 +81,7 @@ int get_compile_script_path(const char* table_name, const char* base_dir,
     int written = snprintf(output, output_size, "%s/scripts/compile_%s_page_%d.sh", 
                           base_dir, table_name, page_number);
     
-    if (written < 0 || written >= output_size) {
+    if (written < 0 || (size_t)written >= output_size) {
         return -1;
     }
     
@@ -98,7 +98,7 @@ int generate_filtered_compilation_script(const TableSchema* schema, const char* 
     }
     
     // Create scripts directory
-    char scripts_dir[1024];
+    char scripts_dir[2048];
     snprintf(scripts_dir, sizeof(scripts_dir), "%s/scripts", base_dir);
     
     struct stat st;
@@ -114,7 +114,7 @@ int generate_filtered_compilation_script(const TableSchema* schema, const char* 
     }
     
     // Create script path
-    char script_path[1024];
+    char script_path[3072];
     snprintf(script_path, sizeof(script_path), "%s/scripts/compile_%s_page_%d_%s.sh", 
              base_dir, schema->name, page_number, suffix);
     
@@ -162,13 +162,13 @@ int generate_table_makefile(const TableSchema* schema, const char* base_dir, int
     }
     
     // Get table directory
-    char table_dir[1024];
+    char table_dir[2048];
     if (get_table_directory(schema->name, base_dir, table_dir, sizeof(table_dir)) != 0) {
         return -1;
     }
     
-    // Create makefile path
-    char makefile_path[1024];
+    // Create makefile path - increase buffer size
+    char makefile_path[3072];
     snprintf(makefile_path, sizeof(makefile_path), "%s/Makefile", table_dir);
     
     // Open makefile

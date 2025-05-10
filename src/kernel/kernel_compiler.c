@@ -16,7 +16,7 @@
  */
 bool is_kernel_compiled(const char* kernel_name, const char* base_dir,
                        const char* table_name, int page_number) {
-    char so_path[1024];
+    char so_path[3072];
     
     if (page_number >= 0) {
         snprintf(so_path, sizeof(so_path), "%s/compiled/%s_%s_page_%d.so", 
@@ -36,7 +36,7 @@ bool is_kernel_compiled(const char* kernel_name, const char* base_dir,
 int generate_kernel_compile_script(const GeneratedKernel* kernel, const char* base_dir,
                                   const char* table_name, int page_number) {
     // Create scripts directory if it doesn't exist
-    char scripts_dir[1024];
+    char scripts_dir[2048];
     snprintf(scripts_dir, sizeof(scripts_dir), "%s/scripts", base_dir);
     
     struct stat st;
@@ -47,8 +47,8 @@ int generate_kernel_compile_script(const GeneratedKernel* kernel, const char* ba
         }
     }
     
-    // Create script path
-    char script_path[1024];
+    // Create script path - increase buffer size to avoid truncation
+    char script_path[3072];
     if (page_number >= 0) {
         snprintf(script_path, sizeof(script_path), "%s/compile_%s_%s_page_%d.sh", 
                  scripts_dir, kernel->kernel_name, table_name, page_number);
@@ -144,7 +144,7 @@ int compile_kernel(const GeneratedKernel* kernel, const char* base_dir,
     }
     
     // Execute compilation script
-    char script_path[1024];
+    char script_path[3072];
     if (page_number >= 0) {
         snprintf(script_path, sizeof(script_path), "%s/scripts/compile_%s_%s_page_%d.sh", 
                  base_dir, kernel->kernel_name, table_name, page_number);
@@ -153,7 +153,8 @@ int compile_kernel(const GeneratedKernel* kernel, const char* base_dir,
                  base_dir, kernel->kernel_name, table_name);
     }
     
-    char command[1024];
+    // Increase command buffer size to accommodate longer paths
+    char command[4096];
     snprintf(command, sizeof(command), "bash %s", script_path);
     
     int result = system(command);

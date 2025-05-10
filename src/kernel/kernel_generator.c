@@ -210,6 +210,9 @@ static void generate_kernel_function(const SelectStatement* stmt, const TableSch
 GeneratedKernel* generate_select_kernel(const SelectStatement* stmt, 
                                        const TableSchema* schema,
                                        const char* base_dir) {
+    // Suppress unused parameter warning
+    (void)base_dir;
+    
     GeneratedKernel* kernel = init_kernel();
     
     // Generate kernel name
@@ -265,7 +268,7 @@ int write_kernel_source(const GeneratedKernel* kernel, const char* base_dir,
     }
     
     // Create kernels directory
-    char kernels_dir[1024];
+    char kernels_dir[2048];
     snprintf(kernels_dir, sizeof(kernels_dir), "%s/kernels", base_dir);
     
     struct stat st;
@@ -276,8 +279,8 @@ int write_kernel_source(const GeneratedKernel* kernel, const char* base_dir,
         }
     }
     
-    // Create source file path
-    char src_path[1024];
+    // Create source file path - increase buffer size to avoid truncation warning
+    char src_path[3072];
     if (page_number >= 0) {
         snprintf(src_path, sizeof(src_path), "%s/%s_%s_page_%d.c", 
                  kernels_dir, kernel->kernel_name, table_name, page_number);

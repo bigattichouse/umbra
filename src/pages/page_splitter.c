@@ -134,13 +134,13 @@ int split_page(const TableSchema* schema, const char* base_dir,
     }
     
     // Get data directory path
-    char data_dir[1024];
+    char data_dir[2048];
     if (get_data_directory(schema->name, base_dir, data_dir, sizeof(data_dir)) != 0) {
         return -1;
     }
     
-    // Get full page data path
-    char full_page_path[1024];
+    // Get full page data path - increase buffer size
+    char full_page_path[3072];
     snprintf(full_page_path, sizeof(full_page_path), "%s/%sData.%d.dat.h", 
              data_dir, schema->name, full_page_number);
     
@@ -175,8 +175,8 @@ int split_page(const TableSchema* schema, const char* base_dir,
         return -1;
     }
     
-    // Get new page data path
-    char new_page_path[1024];
+    // Get new page data path - increase buffer size
+    char new_page_path[3072];
     snprintf(new_page_path, sizeof(new_page_path), "%s/%sData.%d.dat.h", 
              data_dir, schema->name, new_page_number);
     
@@ -232,7 +232,7 @@ static int count_table_pages(const TableSchema* schema, const char* base_dir) {
     }
     
     // Get data directory path
-    char data_dir[1024];
+    char data_dir[2048];
     if (get_data_directory(schema->name, base_dir, data_dir, sizeof(data_dir)) != 0) {
         return -1;
     }
