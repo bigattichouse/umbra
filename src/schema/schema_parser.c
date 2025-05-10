@@ -1,0 +1,507 @@
+/**
+ * @file schema_parser.c
+ * @brief Parser implementation for CREATE TABLE statements
+ */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include "schema_parser.h"
+
+#ifdef DEBUG
+#define DEBUG_PRINT(...) fprintf(stderr, "[DEBUG] " __VA_ARGS__)
+#else
+#define DEBUG_PRINT(...) do {} while(0)
+#endif
+
+/**
+ * @struct Token
+ * @brief Represents a token during parsing
+ */
+typedef struct {
+    char* value;
+    enum {
+        TOKEN_IDENTIFIER,
+        TOKEN_KEYWORD,
+        TOKEN_SYMBOL,
+        TOKEN_NUMBER,
+        TOKEN_STRING,
+        TOKEN_EOF
+    } type;
+} Token;
+
+/**
+ * @struct Tokenizer
+ * @brief Tokenizes SQL input
+ */
+typedef struct {
+    const char* input;
+    int position;
+    int length;
+    Token current_token;
+} Tokenizer;
+
+/**
+ * @brief Initialize a tokenizer with input
+ */
+static void init_tokenizer(Tokenizer* tokenizer, const char* input) {
+    DEBUG_PRINT("init_tokenizer: input='%s'\n", input);
+    tokenizer->input = input;
+    tokenizer->position = 0;
+    tokenizer->length = strlen(input);
+    tokenizer->current_token.value = NULL;
+    tokenizer->current_token.type = TOKEN_EOF;
+}
+
+/**
+ * @brief Free tokenizer resources
+ */
+static void free_tokenizer(Tokenizer* tokenizer) {
+    DEBUG_PRINT("free_tokenizer\n");
+    free(tokenizer->current_token.value);
+    tokenizer->current_token.value = NULL;
+}
+
+/**
+ * @brief Skip whitespace in tokenizer
+ */
+static void skip_whitespace(Tokenizer* tokenizer) {
+    while (tokenizer->position < tokenizer->length && 
+           isspace(tokenizer->input[tokenizer->position])) {
+        tokenizer->position++;
+    }
+}
+
+/**
+ * @brief Get next token
+ */
+static void next_token(Tokenizer* tokenizer) {
+    // Free previous token if any
+    free(tokenizer->current_token.value);
+    tokenizer->current_token.value = NULL;
+    
+    skip_whitespace(tokenizer);
+    
+    if (tokenizer->position >= tokenizer->length) {
+        tokenizer->current_token.type = TOKEN_EOF;
+        DEBUG_PRINT("next_token: EOF\n");
+        return;
+    }
+    
+    // Check for symbols
+    char c = tokenizer->input[tokenizer->position];
+    if (c == '(' || c == ')' || c == ',' || c == ';') {
+        tokenizer->current_token.value = malloc(2);
+        tokenizer->current_token.value[0] = c;
+        tokenizer->current_token.value[1] = '\0';
+        tokenizer->current_token.type = TOKEN_SYMBOL;
+        tokenizer->position++;
+        DEBUG_PRINT("next_token: symbol='%s'\n", tokenizer->current_token.value);
+        return;
+    }
+    
+    // Check for identifiers and keywords
+    if (isalpha(c) || c == '_') {
+        int start = tokenizer->position;
+        while (tokenizer->position < tokenizer->length && 
+               (isalnum(tokenizer->input[tokenizer->position]) || 
+                tokenizer->input[tokenizer->position] == '_')) {
+            tokenizer->position++;
+        }
+        
+        int length = tokenizer->position - start;
+        tokenizer->current_token.value = malloc(length + 1);
+        strncpy(tokenizer->current_token.value, tokenizer->input + start, length);
+        tokenizer->current_token.value[length] = '\0';
+        
+        // Check if it's a keyword
+        char* upper = strdup(tokenizer->current_token.value);
+        for (int i = 0; upper[i]; i++) {
+            upper[i] = toupper(upper[i]);
+        }
+        
+        if (strcmp(upper, "CREATE") == 0 || 
+            strcmp(upper, "TABLE") == 0 || 
+            strcmp(upper, "INT") == 0 || 
+            strcmp(upper, "VARCHAR") == 0 || 
+            strcmp(upper, "TEXT") == 0 || 
+            strcmp(upper, "FLOAT") == 0 || 
+            strcmp(upper, "DATE") == 0 || 
+            strcmp(upper, "BOOLEAN") == 0 ||
+            strcmp(upper, "PRIMARY") == 0 ||
+            strcmp(upper, "KEY") == 0 ||
+            strcmp(upper, "NOT") == 0 ||
+            strcmp(upper, "NULL") == 0 ||
+            strcmp(upper, "DEFAULT") == 0) {
+            tokenizer->current_token.type = TOKEN_KEYWORD;
+        } else {
+            tokenizer->current_token.type = TOKEN_IDENTIFIER;
+        }
+        
+        free(upper);
+        DEBUG_PRINT("next_token: %s='%s'\n", 
+                   tokenizer->current_token.type == TOKEN_KEYWORD ? "keyword" : "identifier",
+                   tokenizer->current_token.value);
+        return;
+    }
+    
+    // Check for numbers
+    if (isdigit(c) || c == '-') {
+        int start = tokenizer->position;
+        if (c == '-') {
+            tokenizer->position++;
+        }
+        
+        while (tokenizer->position < tokenizer->length && 
+               isdigit(tokenizer->input[tokenizer->position])) {
+            tokenizer->position++;
+        }
+        
+        int length = tokenizer->position - start;
+        tokenizer->current_token.value = malloc(length + 1);
+        strncpy(tokenizer->current_token.value, tokenizer->input + start, length);
+        tokenizer->current_token.value[length] = '\0';
+        tokenizer->current_token.type = TOKEN_NUMBER;
+        DEBUG_PRINT("next_token: number='%s'\n", tokenizer->current_token.value);
+        return;
+    }
+    
+    // Handle other cases as symbols
+    tokenizer->current_token.value = malloc(2);
+    tokenizer->current_token.value[0] = c;
+    tokenizer->current_token.value[1] = '\0';
+    tokenizer->current_token.type = TOKEN_SYMBOL;
+    tokenizer->position++;
+    DEBUG_PRINT("next_token: unknown symbol='%s'\n", tokenizer->current_token.value);
+}
+
+/**
+ * @brief Check if current token matches expected value
+ */
+static bool match(Tokenizer* tokenizer, const char* expected) {
+    if (tokenizer->current_token.value && 
+        strcasecmp(tokenizer->current_token.value, expected) == 0) {
+        DEBUG_PRINT("match: matched '%s'\n", expected);
+        next_token(tokenizer);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * @brief Expect a specific token value
+ */
+static bool expect(Tokenizer* tokenizer, const char* expected) {
+    if (!match(tokenizer, expected)) {
+        fprintf(stderr, "Expected '%s', got '%s'\n", 
+                expected, 
+                tokenizer->current_token.value ? tokenizer->current_token.value : "EOF");
+        return false;
+    }
+    return true;
+}
+
+/**
+ * @brief Parse a data type from the tokenizer
+ */
+static DataType parse_data_type(Tokenizer* tokenizer, int* length) {
+    *length = 0;
+    
+    if (tokenizer->current_token.value == NULL) {
+        DEBUG_PRINT("parse_data_type: no token\n");
+        return TYPE_UNKNOWN;
+    }
+    
+    char* upper = strdup(tokenizer->current_token.value);
+    for (int i = 0; upper[i]; i++) {
+        upper[i] = toupper(upper[i]);
+    }
+    
+    DataType type = TYPE_UNKNOWN;
+    
+    DEBUG_PRINT("parse_data_type: checking type '%s'\n", upper);
+    
+    if (strcmp(upper, "INT") == 0) {
+        type = TYPE_INT;
+    } else if (strcmp(upper, "VARCHAR") == 0) {
+        type = TYPE_VARCHAR;
+    } else if (strcmp(upper, "TEXT") == 0) {
+        type = TYPE_TEXT;
+    } else if (strcmp(upper, "FLOAT") == 0) {
+        type = TYPE_FLOAT;
+    } else if (strcmp(upper, "DATE") == 0) {
+        type = TYPE_DATE;
+    } else if (strcmp(upper, "BOOLEAN") == 0) {
+        type = TYPE_BOOLEAN;
+    }
+    
+    free(upper);
+    
+    if (type == TYPE_UNKNOWN) {
+        DEBUG_PRINT("parse_data_type: unknown type\n");
+        return type;
+    }
+    
+    next_token(tokenizer);
+    
+    // Handle VARCHAR length
+    if (type == TYPE_VARCHAR) {
+        if (match(tokenizer, "(")) {
+            // Parse length
+            if (tokenizer->current_token.type == TOKEN_NUMBER) {
+                *length = atoi(tokenizer->current_token.value);
+                DEBUG_PRINT("parse_data_type: VARCHAR length=%d\n", *length);
+                next_token(tokenizer);
+                expect(tokenizer, ")");
+            }
+        }
+    }
+    
+    DEBUG_PRINT("parse_data_type: type=%d, length=%d\n", type, *length);
+    return type;
+}
+
+/**
+ * @brief Parse a column definition
+ */
+static ColumnDefinition parse_column_definition(Tokenizer* tokenizer) {
+    DEBUG_PRINT("parse_column_definition: start\n");
+    ColumnDefinition column;
+    memset(&column, 0, sizeof(ColumnDefinition));
+    
+    // Parse column name
+    if (tokenizer->current_token.type == TOKEN_IDENTIFIER) {
+        strncpy(column.name, tokenizer->current_token.value, sizeof(column.name) - 1);
+        column.name[sizeof(column.name) - 1] = '\0';
+        DEBUG_PRINT("parse_column_definition: name='%s'\n", column.name);
+        next_token(tokenizer);
+    } else {
+        fprintf(stderr, "Expected column name\n");
+        return column;
+    }
+    
+    // Parse data type
+    column.type = parse_data_type(tokenizer, &column.length);
+    
+    // Parse constraints
+    column.nullable = true; // Default to nullable
+    
+    while (tokenizer->current_token.type == TOKEN_KEYWORD) {
+        char* upper = strdup(tokenizer->current_token.value);
+        for (int i = 0; upper[i]; i++) {
+            upper[i] = toupper(upper[i]);
+        }
+        
+        DEBUG_PRINT("parse_column_definition: checking constraint '%s'\n", upper);
+        
+        if (strcmp(upper, "NOT") == 0) {
+            next_token(tokenizer);
+            if (match(tokenizer, "NULL")) {
+                column.nullable = false;
+                DEBUG_PRINT("parse_column_definition: NOT NULL\n");
+            }
+        } else if (strcmp(upper, "DEFAULT") == 0) {
+            next_token(tokenizer);
+            // Parse default value
+            if (tokenizer->current_token.value) {
+                strncpy(column.default_value, tokenizer->current_token.value, 
+                        sizeof(column.default_value) - 1);
+                column.default_value[sizeof(column.default_value) - 1] = '\0';
+                column.has_default = true;
+                DEBUG_PRINT("parse_column_definition: DEFAULT '%s'\n", column.default_value);
+                next_token(tokenizer);
+            }
+        } else if (strcmp(upper, "PRIMARY") == 0) {
+            next_token(tokenizer);
+            if (match(tokenizer, "KEY")) {
+                column.is_primary_key = true;
+                DEBUG_PRINT("parse_column_definition: PRIMARY KEY\n");
+            }
+        } else {
+            free(upper);
+            break;
+        }
+        
+        free(upper);
+    }
+    
+    DEBUG_PRINT("parse_column_definition: done\n");
+    return column;
+}
+
+/**
+ * @brief Parse the CREATE TABLE statement
+ */
+TableSchema* parse_create_table(const char* create_statement) {
+    DEBUG_PRINT("parse_create_table: start\n");
+    if (create_statement == NULL) {
+        DEBUG_PRINT("parse_create_table: NULL statement\n");
+        return NULL;
+    }
+    
+    Tokenizer tokenizer;
+    init_tokenizer(&tokenizer, create_statement);
+    next_token(&tokenizer);
+    
+    // Expect CREATE TABLE
+    if (!match(&tokenizer, "CREATE") || !match(&tokenizer, "TABLE")) {
+        fprintf(stderr, "Expected CREATE TABLE statement\n");
+        free_tokenizer(&tokenizer);
+        return NULL;
+    }
+    
+    // Allocate schema
+    TableSchema* schema = malloc(sizeof(TableSchema));
+    if (!schema) {
+        fprintf(stderr, "Failed to allocate schema\n");
+        free_tokenizer(&tokenizer);
+        return NULL;
+    }
+    memset(schema, 0, sizeof(TableSchema));
+    
+    // Parse table name
+    if (tokenizer.current_token.type == TOKEN_IDENTIFIER) {
+        strncpy(schema->name, tokenizer.current_token.value, sizeof(schema->name) - 1);
+        schema->name[sizeof(schema->name) - 1] = '\0';
+        DEBUG_PRINT("parse_create_table: table name='%s'\n", schema->name);
+        next_token(&tokenizer);
+    } else {
+        fprintf(stderr, "Expected table name\n");
+        free(schema);
+        free_tokenizer(&tokenizer);
+        return NULL;
+    }
+    
+    // Expect opening parenthesis
+    if (!expect(&tokenizer, "(")) {
+        free(schema);
+        free_tokenizer(&tokenizer);
+        return NULL;
+    }
+    
+    // Allocate initial space for columns
+    int capacity = 10;
+    schema->columns = malloc(capacity * sizeof(ColumnDefinition));
+    if (!schema->columns) {
+        fprintf(stderr, "Failed to allocate columns\n");
+        free(schema);
+        free_tokenizer(&tokenizer);
+        return NULL;
+    }
+    schema->column_count = 0;
+    
+    // Parse column definitions
+    while (tokenizer.current_token.type != TOKEN_SYMBOL || 
+           strcmp(tokenizer.current_token.value, ")") != 0) {
+        
+        // Check for comma between columns
+        if (schema->column_count > 0) {
+            if (!expect(&tokenizer, ",")) {
+                free(schema->columns);
+                free(schema);
+                free_tokenizer(&tokenizer);
+                return NULL;
+            }
+        }
+        
+        // Check if we need to expand columns array
+        if (schema->column_count >= capacity) {
+            capacity *= 2;
+            schema->columns = realloc(schema->columns, capacity * sizeof(ColumnDefinition));
+            if (!schema->columns) {
+                fprintf(stderr, "Failed to reallocate columns\n");
+                free(schema);
+                free_tokenizer(&tokenizer);
+                return NULL;
+            }
+        }
+        
+        // Parse column definition
+        schema->columns[schema->column_count] = parse_column_definition(&tokenizer);
+        schema->column_count++;
+        DEBUG_PRINT("parse_create_table: parsed column %d\n", schema->column_count);
+    }
+    
+    // Expect closing parenthesis
+    if (!expect(&tokenizer, ")")) {
+        free(schema->columns);
+        free(schema);
+        free_tokenizer(&tokenizer);
+        return NULL;
+    }
+    
+    // Build primary key list
+    schema->primary_key_column_count = 0;
+    for (int i = 0; i < schema->column_count; i++) {
+        if (schema->columns[i].is_primary_key) {
+            schema->primary_key_column_count++;
+        }
+    }
+    
+    if (schema->primary_key_column_count > 0) {
+        schema->primary_key_columns = malloc(schema->primary_key_column_count * sizeof(int));
+        if (!schema->primary_key_columns) {
+            fprintf(stderr, "Failed to allocate primary key columns\n");
+            free(schema->columns);
+            free(schema);
+            free_tokenizer(&tokenizer);
+            return NULL;
+        }
+        int pk_index = 0;
+        for (int i = 0; i < schema->column_count; i++) {
+            if (schema->columns[i].is_primary_key) {
+                schema->primary_key_columns[pk_index++] = i;
+            }
+        }
+    }
+    
+    free_tokenizer(&tokenizer);
+    DEBUG_PRINT("parse_create_table: completed successfully\n");
+    return schema;
+}
+
+/**
+ * @brief Free a previously allocated table schema
+ */
+void free_table_schema(TableSchema* schema) {
+    DEBUG_PRINT("free_table_schema: start\n");
+    if (schema) {
+        free(schema->columns);
+        free(schema->primary_key_columns);
+        free(schema);
+    }
+    DEBUG_PRINT("free_table_schema: done\n");
+}
+
+/**
+ * @brief Check if a schema is valid
+ */
+bool validate_schema(const TableSchema* schema) {
+    DEBUG_PRINT("validate_schema: start\n");
+    if (!schema || schema->column_count <= 0) {
+        DEBUG_PRINT("validate_schema: invalid schema or no columns\n");
+        return false;
+    }
+    
+    // Check for duplicate column names
+    for (int i = 0; i < schema->column_count; i++) {
+        for (int j = i + 1; j < schema->column_count; j++) {
+            if (strcmp(schema->columns[i].name, schema->columns[j].name) == 0) {
+                fprintf(stderr, "Duplicate column name: %s\n", schema->columns[i].name);
+                return false;
+            }
+        }
+    }
+    
+    // Check for valid data types
+    for (int i = 0; i < schema->column_count; i++) {
+        if (schema->columns[i].type == TYPE_UNKNOWN) {
+            fprintf(stderr, "Unknown data type for column: %s\n", schema->columns[i].name);
+            return false;
+        }
+    }
+    
+    DEBUG_PRINT("validate_schema: schema is valid\n");
+    return true;
+}
