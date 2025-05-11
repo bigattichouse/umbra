@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <sys/stat.h>    // Add this for stat() and mkdir()
+#include <sys/types.h>   // Add this for mode_t
+#include <errno.h>       // Add this for errno
 #include "schema_parser.h"
 
 #ifdef DEBUG
