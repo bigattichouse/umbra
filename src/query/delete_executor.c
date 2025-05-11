@@ -81,13 +81,88 @@ static GeneratedKernel* generate_delete_kernel(const DeleteStatement* stmt,
 }
 
 /**
+ * @brief Find UUID column index in schema
+ */
+static int find_uuid_column_index(const TableSchema* schema) {
+    // Look for the _uuid column
+    for (int i = 0; i < schema->column_count; i++) {
+        if (strcmp(schema->columns[i].name, "_uuid") == 0) {
+            return i;
+        }
+    }
+    
+    // If not found, return -1
+    return -1;
+}
+
+/**
+ * @brief Get field size in bytes
+ */
+static size_t get_field_size(DataType type, int length) {
+    switch (type) {
+        case TYPE_INT:
+            return sizeof(int);
+        case TYPE_FLOAT:
+            return sizeof(double);
+        case TYPE_BOOLEAN:
+            return sizeof(bool);
+        case TYPE_DATE:
+            return sizeof(time_t);
+        case TYPE_VARCHAR:
+        case TYPE_TEXT:
+            return length + 1; // Include null terminator
+        default:
+            return 0;
+    }
+}
+
+/**
+ * @brief Get UUID string from record using schema
+ */
+static char* get_uuid_from_record(void* record, const TableSchema* schema) {
+    int uuid_idx = find_uuid_column_index(schema);
+    if (uuid_idx < 0) {
+        return NULL;
+    }
+    
+    // Calculate the offset to the UUID field
+    size_t offset = 0;
+    for (int i = 0; i < uuid_idx; i++) {
+        offset += get_field_size(schema->columns[i].type, schema->columns[i].length);
+    }
+    
+    // The UUID is a varchar, so it's a char array
+    char* uuid_ptr = (char*)record + offset;
+    return strdup(uuid_ptr);
+}
+
+/**
  * @brief Physically delete records from a data file
  */
-static int delete_records_from_file(const char* data_path, void** records, int record_count,
+static int delete_records_from_file(const char* data_path, const TableSchema* schema, 
                                    void** matches, int match_count) {
+    if (match_count == 0) {
+        return 0;  // Nothing to delete
+    }
+
+    // Extract UUIDs from matching records for easy comparison
+    char** match_uuids = malloc(match_count * sizeof(char*));
+    for (int i = 0; i < match_count; i++) {
+        match_uuids[i] = get_uuid_from_record(matches[i], schema);
+        #ifdef DEBUG
+        fprintf(stderr, "[DEBUG] Matching UUID %d: %s\n", i, match_uuids[i] ? match_uuids[i] : "NULL");
+        #endif
+    }
+    
     // Open the file for reading
     FILE* read_file = fopen(data_path, "r");
     if (!read_file) {
+        // Clean up UUIDs
+        for (int i = 0; i < match_count; i++) {
+            free(match_uuids[i]);
+        }
+        free(match_uuids);
+        
         fprintf(stderr, "Failed to open data file for reading: %s\n", data_path);
         return -1;
     }
@@ -105,45 +180,78 @@ static int delete_records_from_file(const char* data_path, void** records, int r
     
     fclose(read_file);
     
-    // Create a bitmap to mark records for deletion
-    bool* to_delete = calloc(record_count, sizeof(bool));
+    // Create an array to track record lines and which ones to delete
+    typedef struct {
+        int line_index;
+        bool should_delete;
+    } RecordLine;
     
-    // Mark records for deletion based on matches
-    for (int i = 0; i < match_count; i++) {
-        for (int j = 0; j < record_count; j++) {
-            if (matches[i] == records[j]) {
-                to_delete[j] = true;
-                break;
-            }
-        }
-    }
+    RecordLine* record_lines = NULL;
+    int record_count = 0;
     
-    // Find lines that represent records (those containing struct initializers)
-    // Each record is a line ending with "},\n"
-    int* record_lines = malloc(record_count * sizeof(int));
-    int found_records = 0;
-    
-    for (int i = 0; i < line_count && found_records < record_count; i++) {
+    // First, find all record lines (those containing struct initializers)
+    for (int i = 0; i < line_count; i++) {
         // Check if this line represents a record
         size_t len = strlen(lines[i]);
         if (len >= 3 && lines[i][len-3] == '}' && lines[i][len-2] == ',' && lines[i][len-1] == '\n') {
-            record_lines[found_records++] = i;
+            record_lines = realloc(record_lines, (record_count + 1) * sizeof(RecordLine));
+            record_lines[record_count].line_index = i;
+            record_lines[record_count].should_delete = false;
+            record_count++;
         }
+    }
+
+    // Mark records for deletion by scanning for UUIDs in the file content
+    int marked_for_deletion = 0;
+    
+    for (int i = 0; i < match_count; i++) {
+        if (!match_uuids[i]) continue;
+        
+        // Look for this UUID in each record line
+        for (int j = 0; j < record_count; j++) {
+            int line_idx = record_lines[j].line_index;
+            if (record_lines[j].should_delete) continue;  // Already marked
+            
+            // Check if this line contains the UUID
+            if (strstr(lines[line_idx], match_uuids[i])) {
+                record_lines[j].should_delete = true;
+                marked_for_deletion++;
+                #ifdef DEBUG
+                fprintf(stderr, "[DEBUG] Marked record at line %d for deletion (UUID: %s)\n", 
+                        line_idx, match_uuids[i]);
+                #endif
+                break;  // Found this UUID, move to next
+            }
+        }
+    }
+
+    // Clean up UUID strings
+    for (int i = 0; i < match_count; i++) {
+        free(match_uuids[i]);
+    }
+    free(match_uuids);
+    
+    // If nothing to delete, clean up and return
+    if (marked_for_deletion == 0) {
+        for (int i = 0; i < line_count; i++) {
+            free(lines[i]);
+        }
+        free(lines);
+        free(record_lines);
+        return 0;
     }
     
     // Open file for writing
     FILE* write_file = fopen(data_path, "w");
     if (!write_file) {
-        fprintf(stderr, "Failed to open data file for writing: %s\n", data_path);
-        
         // Clean up
         for (int i = 0; i < line_count; i++) {
             free(lines[i]);
         }
         free(lines);
-        free(to_delete);
         free(record_lines);
         
+        fprintf(stderr, "Failed to open data file for writing: %s\n", data_path);
         return -1;
     }
     
@@ -152,27 +260,23 @@ static int delete_records_from_file(const char* data_path, void** records, int r
     
     // Write lines, skipping deleted records
     int deleted = 0;
-    int line_idx = 0;
+    int record_idx = 0;
     
-    while (line_idx < line_count) {
+    for (int line_idx = 0; line_idx < line_count; line_idx++) {
         // Check if this is a record line to delete
         bool skip = false;
         
-        if (found_records > 0) {
-            for (int i = 0; i < found_records; i++) {
-                if (line_idx == record_lines[i] && to_delete[i]) {
-                    skip = true;
-                    deleted++;
-                    break;
-                }
+        if (record_idx < record_count && line_idx == record_lines[record_idx].line_index) {
+            if (record_lines[record_idx].should_delete) {
+                skip = true;
+                deleted++;
             }
+            record_idx++;
         }
         
         if (!skip) {
             fputs(lines[line_idx], write_file);
         }
-        
-        line_idx++;
     }
     
     fclose(write_file);
@@ -182,7 +286,6 @@ static int delete_records_from_file(const char* data_path, void** records, int r
         free(lines[i]);
     }
     free(lines);
-    free(to_delete);
     free(record_lines);
     
     return deleted;
@@ -283,12 +386,10 @@ DeleteResult* execute_delete(const DeleteStatement* stmt, const char* base_dir) 
             continue;
         }
         
-        void** records = malloc(page_records * sizeof(void*));
-        for (int i = 0; i < page_records; i++) {
-            read_record(&page, i, &records[i]);
+        if (page_records == 0) {
+            unload_page(&page);
+            continue;
         }
-        
-        int delete_count = 0;
         
         // Get data file path
         char data_path[2048];
@@ -297,41 +398,67 @@ DeleteResult* execute_delete(const DeleteStatement* stmt, const char* base_dir) 
         
         if (stmt->where_clause && kernel_loaded) {
             // Use kernel to find matching records
-            // Calculate the actual record size
-            size_t record_size = calculate_record_size((const struct TableSchema*)schema);
-
-            // Allocate space for full record structures
-            void* matches = malloc(page_records * record_size);
-
+            size_t record_size = sizeof(void*); // We'll store pointers not copies
+            
+            // Allocate space for matching record pointers
+            void** matches = malloc(page_records * record_size);
             if (!matches) {
                 fprintf(stderr, "Failed to allocate matches buffer\n");
                 unload_page(&page);
-                free(records);
                 continue;
             }
             
-            delete_count = execute_kernel(&loaded_kernel, records, page_records,
-                                         matches, page_records);
+            // Track matched records
+            int match_count = 0;
+            
+            // Load page data
+            void* data_ptr;
+            if (read_record(&page, 0, &data_ptr) != 0) {
+                free(matches);
+                unload_page(&page);
+                continue;
+            }
+            
+            // Get the first record to determine its size
+            size_t struct_size = calculate_record_size((const struct TableSchema*)schema);
+            
+            // Allocate space for kernel results
+            void* kernel_results = malloc(page_records * struct_size);
+            if (!kernel_results) {
+                free(matches);
+                unload_page(&page);
+                continue;
+            }
+            
+            // Execute kernel to find matching records
+            int kernel_result_count = execute_kernel(
+                &loaded_kernel, data_ptr, page_records, kernel_results, page_records);
+            
+            #ifdef DEBUG
+            fprintf(stderr, "[DEBUG] Kernel found %d matching records in page %d\n", 
+                    kernel_result_count, page_num);
+            #endif
+            
+            // Store pointers to matches
+            for (int i = 0; i < kernel_result_count; i++) {
+                matches[match_count++] = (char*)kernel_results + (i * struct_size);
+            }
             
             // Now physically delete the records
-            if (delete_count > 0) {
-                void** match_ptrs = malloc(delete_count * sizeof(void*));
-                for (int i = 0; i < delete_count; i++) {
-                    match_ptrs[i] = (char*)matches + (i * record_size);
-                }
-                
-                // Delete the matching records from the data file
-                int deleted = delete_records_from_file(data_path, records, page_records,
-                                                      match_ptrs, delete_count);
+            if (match_count > 0) {
+                int deleted = delete_records_from_file(data_path, schema, matches, match_count);
                 
                 if (deleted > 0) {
                     affected_pages[page_num] = true;
                     total_deleted += deleted;
+                    #ifdef DEBUG
+                    fprintf(stderr, "[DEBUG] Deleted %d records from page %d\n", deleted, page_num);
+                    #endif
                 }
-                
-                free(match_ptrs);
             }
             
+            // Clean up
+            free(kernel_results);
             free(matches);
         } else {
             // No WHERE clause - delete all records
@@ -346,14 +473,18 @@ DeleteResult* execute_delete(const DeleteStatement* stmt, const char* base_dir) 
             }
         }
         
-        free(records);
         unload_page(&page);
     }
     
     // Recompile affected pages
     for (int i = 0; i < page_count; i++) {
         if (affected_pages[i]) {
-            recompile_data_page(schema, base_dir, i);
+            #ifdef DEBUG
+            fprintf(stderr, "[DEBUG] Recompiling page %d\n", i);
+            #endif
+            if (recompile_data_page(schema, base_dir, i) != 0) {
+                fprintf(stderr, "Warning: Failed to recompile page %d\n", i);
+            }
         }
     }
     

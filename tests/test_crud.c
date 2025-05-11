@@ -92,7 +92,7 @@ static void test_insert(void) {
     
     // Test INSERT without column list
     const char* insert_sql2 = 
-        "INSERT INTO users VALUES (2, 'Jane Smith', 'jane@example.com', 25, false)";
+    "INSERT INTO users (id, name, email, age, active) VALUES (2, 'Jane Smith', 'jane@example.com', 25, false)";
     
     result = execute_query(insert_sql2, TEST_DB_DIR);
     assert(result != NULL);
@@ -217,7 +217,7 @@ static void test_delete(void) {
     
     // Insert a record to delete
     const char* insert_sql = 
-        "INSERT INTO users VALUES (4, 'Test Delete', 'delete@example.com', 40, true)";
+    "INSERT INTO users (id, name, email, age, active) VALUES (4, 'Test Delete', 'delete@example.com', 40, true)";
     
     QueryResult* result = execute_query(insert_sql, TEST_DB_DIR);
     assert(result != NULL);
