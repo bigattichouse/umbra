@@ -99,9 +99,29 @@ int create_test_table(void) {
         free_table_schema(schema);
         return 1;
     }
-
-    // After validating the schema
-    printf("Schema validation passed, saving metadata...\n");
+    
+    printf("Schema parsed successfully. Table: %s, Columns: %d\n", 
+           schema->name, schema->column_count);
+    
+    // CORRECT ORDER:
+    // 1. FIRST: Initialize database directory
+    DEBUG_PRINT("Initializing database directory: %s\n", TEST_DB_DIR);
+    if (initialize_database_directory(TEST_DB_DIR) != 0) {
+        fprintf(stderr, "Failed to initialize database directory\n");
+        free_table_schema(schema);
+        return 1;
+    }
+    
+    // 2. SECOND: Create table directory structure
+    DEBUG_PRINT("Creating table directory structure\n");
+    if (create_table_directory(schema->name, TEST_DB_DIR) != 0) {
+        fprintf(stderr, "Failed to create table directory\n");
+        free_table_schema(schema);
+        return 1;
+    }
+    
+    // 3. THIRD: Now save schema metadata
+    printf("Saving schema metadata...\n");
     if (save_schema_metadata(schema, TEST_DB_DIR) != 0) {
         fprintf(stderr, "Failed to save schema metadata\n");
         free_table_schema(schema);
@@ -109,71 +129,7 @@ int create_test_table(void) {
     }
     printf("Schema metadata saved successfully\n");
     
-    // Validate the schema
-    if (!validate_schema(schema)) {
-        fprintf(stderr, "Invalid schema\n");
-        free_table_schema(schema);
-        return 1;
-    }
-    
-    printf("Schema parsed successfully. Table: %s, Columns: %d\n", 
-           schema->name, schema->column_count);
-           
-           
-           printf("Schema validation passed, attempting manual directory creation...\n");
-
-        // Get the exact path the metadata save function expects
-        char metadata_dir[2048];
-        snprintf(metadata_dir, sizeof(metadata_dir), "%s/tables/%s/metadata", 
-                 TEST_DB_DIR, schema->name);
-
-        printf("Checking directory: %s\n", metadata_dir);
-
-        // Try to create parent directories first
-        char parent_dir[2048];
-        snprintf(parent_dir, sizeof(parent_dir), "%s/tables", TEST_DB_DIR);
-        mkdir(parent_dir, 0755);
-        printf("Created parent dir: %s\n", parent_dir);
-
-        // Create table dir
-        snprintf(parent_dir, sizeof(parent_dir), "%s/tables/%s", TEST_DB_DIR, schema->name);
-        mkdir(parent_dir, 0755);
-        printf("Created table dir: %s\n", parent_dir);
-
-        // Now create metadata dir
-        printf("Creating metadata dir: %s\n", metadata_dir);
-        if (mkdir(metadata_dir, 0755) != 0) {
-            printf("Failed to create dir: %s (error: %s)\n", metadata_dir, strerror(errno));
-        } else {
-            printf("Successfully created metadata directory\n");
-        }
-
-        // Now try to save metadata
-        printf("Now trying to save schema metadata...\n");
-        if (save_schema_metadata(schema, TEST_DB_DIR) != 0) {
-            fprintf(stderr, "Failed to save schema metadata\n");
-            free_table_schema(schema);
-            return 1;
-        }
-        printf("Schema metadata saved successfully\n");
-    
-    DEBUG_PRINT("Initializing database directory: %s\n", TEST_DB_DIR);
-    // Initialize database directory
-    if (initialize_database_directory(TEST_DB_DIR) != 0) {
-        fprintf(stderr, "Failed to initialize database directory\n");
-        free_table_schema(schema);
-        return 1;
-    }
-    
-    DEBUG_PRINT("Creating table directory structure\n");
-    // Create table directory structure
-    if (create_table_directory(schema->name, TEST_DB_DIR) != 0) {
-        fprintf(stderr, "Failed to create table directory\n");
-        free_table_schema(schema);
-        return 1;
-    }
-    
-    // Get the table directory path to place the header file correctly
+    // 4. Get table directory path to place the header file correctly
     char table_dir[1024];
     if (get_table_directory(schema->name, TEST_DB_DIR, table_dir, sizeof(table_dir)) != 0) {
         fprintf(stderr, "Failed to get table directory\n");
@@ -182,7 +138,7 @@ int create_test_table(void) {
     }
     
     DEBUG_PRINT("Generating header file in table directory: %s\n", table_dir);
-    // Generate struct header file in the table directory
+    // 5. Generate struct header file in the table directory
     if (generate_header_file(schema, table_dir) != 0) {
         fprintf(stderr, "Failed to generate header file\n");
         free_table_schema(schema);
@@ -190,7 +146,7 @@ int create_test_table(void) {
     }
     
     DEBUG_PRINT("Generating initial data page\n");
-    // Generate initial data page
+    // 6. Generate initial data page
     if (generate_data_page(schema, TEST_DB_DIR, 0) != 0) {
         fprintf(stderr, "Failed to generate initial data page\n");
         free_table_schema(schema);
