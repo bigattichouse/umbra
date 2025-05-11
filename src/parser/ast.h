@@ -14,7 +14,39 @@
  */
 typedef struct ASTNode ASTNode;
 typedef struct SelectStatement SelectStatement;
+typedef struct InsertStatement InsertStatement;
+typedef struct UpdateStatement UpdateStatement;
+typedef struct DeleteStatement DeleteStatement;
 typedef struct Expression Expression;
+
+/**
+ * @struct SetClause
+ * @brief Represents a SET clause in UPDATE
+ */
+typedef struct {
+    char* column_name;      /**< Column to update */
+    Expression* value;      /**< New value expression */
+} SetClause;
+
+/**
+ * @struct UpdateStatement
+ * @brief Represents an UPDATE statement
+ */
+struct UpdateStatement {
+    char* table_name;       /**< Target table name */
+    SetClause* set_clauses; /**< SET clauses */
+    int set_count;          /**< Number of SET clauses */
+    Expression* where_clause; /**< WHERE condition (optional) */
+};
+
+/**
+ * @struct DeleteStatement
+ * @brief Represents a DELETE statement
+ */
+struct DeleteStatement {
+    char* table_name;       /**< Target table name */
+    Expression* where_clause; /**< WHERE condition (optional) */
+};
 
 /**
  * @enum ASTNodeType
@@ -22,6 +54,9 @@ typedef struct Expression Expression;
  */
 typedef enum {
     AST_SELECT_STATEMENT,
+    AST_INSERT_STATEMENT,
+    AST_UPDATE_STATEMENT,
+    AST_DELETE_STATEMENT,
     AST_EXPRESSION,
     AST_COLUMN_REF,
     AST_LITERAL,
@@ -161,6 +196,26 @@ struct SelectStatement {
 };
 
 /**
+ * @struct ValueList
+ * @brief List of values for INSERT
+ */
+typedef struct {
+    Expression** values;
+    int count;
+} ValueList;
+
+/**
+ * @struct InsertStatement
+ * @brief INSERT statement representation
+ */
+struct InsertStatement {
+    char* table_name;
+    char** columns;          /**< Column names (optional) */
+    int column_count;
+    ValueList value_list;
+};
+
+/**
  * @struct ASTNode
  * @brief Generic AST node
  */
@@ -168,6 +223,9 @@ struct ASTNode {
     ASTNodeType type;
     union {
         SelectStatement* select_stmt;
+        InsertStatement* insert_stmt;
+        UpdateStatement* update_stmt;
+        DeleteStatement* delete_stmt;
         Expression* expression;
     } data;
 };
@@ -218,6 +276,21 @@ SelectStatement* create_select_statement(void);
 void add_select_expression(SelectStatement* stmt, Expression* expr);
 
 /**
+ * @brief Create an INSERT statement
+ */
+InsertStatement* create_insert_statement(void);
+
+/**
+ * @brief Add column to INSERT statement
+ */
+void add_insert_column(InsertStatement* stmt, const char* column_name);
+
+/**
+ * @brief Add value to INSERT statement
+ */
+void add_insert_value(InsertStatement* stmt, Expression* value);
+
+/**
  * @brief Free AST node and all children
  */
 void free_ast_node(ASTNode* node);
@@ -231,6 +304,21 @@ void free_expression(Expression* expr);
  * @brief Free SELECT statement and all children
  */
 void free_select_statement(SelectStatement* stmt);
+
+/**
+ * @brief Free INSERT statement and all children
+ */
+void free_insert_statement(InsertStatement* stmt);
+
+/**
+ * @brief Free UPDATE statement and all children
+ */
+void free_update_statement(UpdateStatement* stmt);
+
+/**
+ * @brief Free DELETE statement and all children
+ */
+void free_delete_statement(DeleteStatement* stmt);
 
 /**
  * @brief Get operator name for debugging

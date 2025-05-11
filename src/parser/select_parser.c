@@ -7,10 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>  // Added for va_start, va_end
+#include "parser_common.h"
 #include "select_parser.h"
 
-// Forward declarations
-static Expression* parse_expression(Parser* parser);
+// Forward declarations - remove static for shared functions
+Expression* parse_expression(Parser* parser);
 static Expression* parse_primary(Parser* parser);
 static Expression* parse_comparison(Parser* parser);
 static Expression* parse_and(Parser* parser);
@@ -32,41 +33,6 @@ void parser_init(Parser* parser, Lexer* lexer) {
 void parser_free(Parser* parser) {
     // Parser doesn't own the lexer, so nothing to free
     (void)parser;
-}
-
-/**
- * @brief Set parser error
- */
-static void set_error(Parser* parser, const char* format, ...) {
-    parser->has_error = true;
-    
-    va_list args;
-    va_start(args, format);
-    vsnprintf(parser->error_message, sizeof(parser->error_message), format, args);
-    va_end(args);
-}
-
-/**
- * @brief Check if current token matches expected type
- */
-static bool match(Parser* parser, TokenType type) {
-    if (parser->current_token.type == type) {
-        parser->current_token = lexer_next_token(parser->lexer);
-        return true;
-    }
-    return false;
-}
-
-/**
- * @brief Expect a specific token type
- */
-static bool expect(Parser* parser, TokenType type, const char* error_msg) {
-    if (!match(parser, type)) {
-        set_error(parser, "%s. Got %s", error_msg, 
-                  token_type_to_string(parser->current_token.type));
-        return false;
-    }
-    return true;
 }
 
 /**
@@ -107,7 +73,7 @@ static Expression* parse_literal(Parser* parser) {
             break;
         }
         default:
-            set_error(parser, "Expected literal value");
+            parser_set_error(parser, "Expected literal value");
             free(expr);
             return NULL;
     }
@@ -127,7 +93,7 @@ static Expression* parse_column_ref(Parser* parser) {
     // Check for table.column syntax
     if (match(parser, TOKEN_DOT)) {
         if (parser->current_token.type != TOKEN_IDENTIFIER) {
-            set_error(parser, "Expected column name after '.'");
+            parser_set_error(parser, "Expected column name after '.'");
             free(first_name);
             free(expr);
             return NULL;
@@ -181,7 +147,7 @@ static Expression* parse_primary(Parser* parser) {
         }
         
         default:
-            set_error(parser, "Expected expression");
+            parser_set_error(parser, "Expected expression");
             return NULL;
     }
 }
@@ -277,7 +243,7 @@ static Expression* parse_or(Parser* parser) {
 /**
  * @brief Parse a general expression
  */
-static Expression* parse_expression(Parser* parser) {
+Expression* parse_expression(Parser* parser) {
     return parse_or(parser);
 }
 
@@ -317,7 +283,7 @@ static bool parse_from_clause(Parser* parser, SelectStatement* stmt) {
     }
     
     if (parser->current_token.type != TOKEN_IDENTIFIER) {
-        set_error(parser, "Expected table name after FROM");
+        parser_set_error(parser, "Expected table name after FROM");
         return false;
     }
     
@@ -331,7 +297,7 @@ static bool parse_from_clause(Parser* parser, SelectStatement* stmt) {
     if (parser->current_token.type == TOKEN_AS) {
         parser->current_token = lexer_next_token(parser->lexer);
         if (parser->current_token.type != TOKEN_IDENTIFIER) {
-            set_error(parser, "Expected alias after AS");
+            parser_set_error(parser, "Expected alias after AS");
             return false;
         }
         stmt->from_table->alias = strdup(parser->current_token.value);

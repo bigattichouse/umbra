@@ -19,6 +19,12 @@ typedef struct {
 
 static const Keyword keywords[] = {
     {"SELECT", TOKEN_SELECT},
+    {"INSERT", TOKEN_INSERT},
+    {"UPDATE", TOKEN_UPDATE},
+    {"DELETE", TOKEN_DELETE},
+    {"INTO", TOKEN_INTO},
+    {"VALUES", TOKEN_VALUES},
+    {"SET", TOKEN_SET},
     {"FROM", TOKEN_FROM},
     {"WHERE", TOKEN_WHERE},
     {"AND", TOKEN_AND},

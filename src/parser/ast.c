@@ -135,6 +135,41 @@ void add_select_expression(SelectStatement* stmt, Expression* expr) {
 }
 
 /**
+ * @brief Create an INSERT statement
+ */
+InsertStatement* create_insert_statement(void) {
+    InsertStatement* stmt = malloc(sizeof(InsertStatement));
+    
+    stmt->table_name = NULL;
+    stmt->columns = NULL;
+    stmt->column_count = 0;
+    stmt->value_list.values = NULL;
+    stmt->value_list.count = 0;
+    
+    return stmt;
+}
+
+/**
+ * @brief Add column to INSERT statement
+ */
+void add_insert_column(InsertStatement* stmt, const char* column_name) {
+    stmt->columns = realloc(stmt->columns, 
+                           (stmt->column_count + 1) * sizeof(char*));
+    stmt->columns[stmt->column_count] = strdup(column_name);
+    stmt->column_count++;
+}
+
+/**
+ * @brief Add value to INSERT statement
+ */
+void add_insert_value(InsertStatement* stmt, Expression* value) {
+    stmt->value_list.values = realloc(stmt->value_list.values,
+                                     (stmt->value_list.count + 1) * sizeof(Expression*));
+    stmt->value_list.values[stmt->value_list.count] = value;
+    stmt->value_list.count++;
+}
+
+/**
  * @brief Free column reference
  */
 static void free_column_ref(ColumnRef* ref) {
@@ -186,6 +221,10 @@ void free_expression(Expression* expr) {
             free(expr->data.function.arguments);
             break;
             
+        case AST_STAR:
+            // Nothing to free for star
+            break;
+            
         default:
             break;
     }
@@ -215,7 +254,7 @@ void free_select_statement(SelectStatement* stmt) {
     // Free where clause
     free_expression(stmt->where_clause);
     
-    // Free order by
+    // Free order by clauses
     if (stmt->order_by) {
         for (int i = 0; i < stmt->order_by_count; i++) {
             free_expression(stmt->order_by[i].expression);
@@ -223,6 +262,32 @@ void free_select_statement(SelectStatement* stmt) {
         free(stmt->order_by);
     }
     
+    // Free the statement itself
+    free(stmt);
+}
+
+/**
+ * @brief Free INSERT statement and all children
+ */
+void free_insert_statement(InsertStatement* stmt) {
+    if (!stmt) return;
+    
+    // Free table name
+    free(stmt->table_name);
+    
+    // Free column names
+    for (int i = 0; i < stmt->column_count; i++) {
+        free(stmt->columns[i]);
+    }
+    free(stmt->columns);
+    
+    // Free values
+    for (int i = 0; i < stmt->value_list.count; i++) {
+        free_expression(stmt->value_list.values[i]);
+    }
+    free(stmt->value_list.values);
+    
+    // Free the statement itself
     free(stmt);
 }
 
@@ -237,9 +302,23 @@ void free_ast_node(ASTNode* node) {
             free_select_statement(node->data.select_stmt);
             break;
             
+        case AST_INSERT_STATEMENT:
+            free_insert_statement(node->data.insert_stmt);
+            break;
+            
+        case AST_UPDATE_STATEMENT:
+            free_update_statement(node->data.update_stmt);
+            break;
+            
+        case AST_DELETE_STATEMENT:
+            free_delete_statement(node->data.delete_stmt);
+            break;
+            
         case AST_EXPRESSION:
             free_expression(node->data.expression);
             break;
+            
+          
             
         default:
             break;

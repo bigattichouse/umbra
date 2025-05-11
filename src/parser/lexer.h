@@ -18,6 +18,12 @@ typedef enum {
     
     // Keywords
     TOKEN_SELECT,
+    TOKEN_INSERT,
+    TOKEN_UPDATE,
+    TOKEN_DELETE,
+    TOKEN_INTO,
+    TOKEN_VALUES,
+    TOKEN_SET,
     TOKEN_FROM,
     TOKEN_WHERE,
     TOKEN_AND,

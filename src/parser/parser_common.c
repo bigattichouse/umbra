@@ -1,0 +1,43 @@
+/**
+ * @file parser_common.c
+ * @brief Common parser utilities implementation
+ */
+
+#include "parser_common.h"
+#include <stdio.h>
+#include <string.h>
+
+/**
+ * @brief Set parser error
+ */
+void parser_set_error(Parser* parser, const char* format, ...) {
+    parser->has_error = true;
+    
+    va_list args;
+    va_start(args, format);
+    vsnprintf(parser->error_message, sizeof(parser->error_message), format, args);
+    va_end(args);
+}
+
+/**
+ * @brief Check if current token matches expected type
+ */
+bool match(Parser* parser, TokenType type) {
+    if (parser->current_token.type == type) {
+        parser->current_token = lexer_next_token(parser->lexer);
+        return true;
+    }
+    return false;
+}
+
+/**
+ * @brief Expect a specific token type
+ */
+bool expect(Parser* parser, TokenType type, const char* error_msg) {
+    if (!match(parser, type)) {
+        parser_set_error(parser, "%s. Got %s", error_msg, 
+                  token_type_to_string(parser->current_token.type));
+        return false;
+    }
+    return true;
+}

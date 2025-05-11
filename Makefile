@@ -19,7 +19,9 @@ BIN_DIR = $(BUILD_DIR)/bin
 SCHEMA_SRCS = $(SRC_DIR)/schema/schema_parser.c \
               $(SRC_DIR)/schema/schema_generator.c \
               $(SRC_DIR)/schema/type_system.c \
-              $(SRC_DIR)/schema/directory_manager.c
+              $(SRC_DIR)/schema/directory_manager.c \
+              $(SRC_DIR)/schema/metadata.c \
+              $(SRC_DIR)/schema/permission.c
 
 PAGES_SRCS = $(SRC_DIR)/pages/page_generator.c \
              $(SRC_DIR)/pages/accessor_generator.c \
@@ -33,6 +35,10 @@ LOADER_SRCS = $(SRC_DIR)/loader/so_loader.c \
 
 PARSER_SRCS = $(SRC_DIR)/parser/lexer.c \
               $(SRC_DIR)/parser/select_parser.c \
+              $(SRC_DIR)/parser/insert_parser.c \
+              $(SRC_DIR)/parser/update_parser.c \
+              $(SRC_DIR)/parser/delete_parser.c \
+              $(SRC_DIR)/parser/parser_common.c \
               $(SRC_DIR)/parser/ast.c
 
 KERNEL_SRCS = $(SRC_DIR)/kernel/kernel_generator.c \
@@ -42,7 +48,10 @@ KERNEL_SRCS = $(SRC_DIR)/kernel/kernel_generator.c \
               $(SRC_DIR)/kernel/kernel_loader.c
 
 QUERY_SRCS = $(SRC_DIR)/query/query_executor.c \
-             $(SRC_DIR)/query/select_executor.c
+             $(SRC_DIR)/query/select_executor.c \
+             $(SRC_DIR)/query/insert_executor.c \
+             $(SRC_DIR)/query/update_executor.c \
+             $(SRC_DIR)/query/delete_executor.c
 
 CLI_SRCS = $(SRC_DIR)/cli/cli_main.c \
            $(SRC_DIR)/cli/interactive_mode.c \
@@ -135,6 +144,10 @@ test_create_table: $(BIN_DIR)/test_create_table
 	@echo "Running test_create_table..."
 	@$< || exit 1
 
+test_crud: $(BIN_DIR)/test_crud
+	@echo "Running test_crud..."
+	@$< || exit 1
+
 # Install target (optional)
 PREFIX ?= /usr/local
 install: $(UMBRA_LIB)
@@ -175,7 +188,7 @@ info:
 	@echo "CLI: $(UMBRA_CLI)"
 
 # Phony targets
-.PHONY: all clean tests test install uninstall info test_create_table debug_test valgrind_test
+.PHONY: all clean tests test install uninstall info test_create_table test_crud debug_test valgrind_test
 
 # Dependencies (automatically generated)
 -include $(ALL_OBJS:.o=.d)
