@@ -148,7 +148,6 @@ int add_record_to_page(const TableSchema* schema, const char* base_dir,
     fclose(data_file);
     return 0;
 }
-
 /**
  * @brief Count the number of records in a data page file
  */

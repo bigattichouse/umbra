@@ -3,7 +3,7 @@
 # Compiler and flags
 CC = gcc
 CFLAGS = -Wall -Wextra -g3 -O0 -I. -DDEBUG -fsanitize=address -fno-omit-frame-pointer
-LDFLAGS = -ldl -lreadline -fsanitize=address
+LDFLAGS = -ldl -lreadline -luuid -fsanitize=address
 AR = ar
 ARFLAGS = rcs
 
@@ -60,9 +60,11 @@ CLI_SRCS = $(SRC_DIR)/cli/cli_main.c \
            $(SRC_DIR)/cli/result_formatter.c \
            $(SRC_DIR)/cli/cli_commands.c \
            $(SRC_DIR)/cli/command_history.c
+           
+UTIL_SRCS = $(SRC_DIR)/util/uuid_utils.c
 
 # All source files
-ALL_SRCS = $(SCHEMA_SRCS) $(PAGES_SRCS) $(LOADER_SRCS) $(PARSER_SRCS) $(KERNEL_SRCS) $(QUERY_SRCS) $(CLI_SRCS)
+ALL_SRCS = $(SCHEMA_SRCS) $(PAGES_SRCS) $(LOADER_SRCS) $(PARSER_SRCS) $(KERNEL_SRCS) $(QUERY_SRCS) $(CLI_SRCS) $(UTIL_SRCS)
 
 # Object files
 SCHEMA_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SCHEMA_SRCS))
@@ -72,7 +74,9 @@ PARSER_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(PARSER_SRCS))
 KERNEL_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(KERNEL_SRCS))
 QUERY_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(QUERY_SRCS))
 CLI_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(CLI_SRCS))
-ALL_OBJS = $(SCHEMA_OBJS) $(PAGES_OBJS) $(LOADER_OBJS) $(PARSER_OBJS) $(KERNEL_OBJS) $(QUERY_OBJS) $(CLI_OBJS)
+UTIL_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(UTIL_SRCS))
+
+ALL_OBJS = $(SCHEMA_OBJS) $(PAGES_OBJS) $(LOADER_OBJS) $(PARSER_OBJS) $(KERNEL_OBJS) $(QUERY_OBJS) $(CLI_OBJS) $(UTIL_OBJS)
 
 # Static library
 UMBRA_LIB = $(LIB_DIR)/libumbra.a
@@ -88,11 +92,11 @@ UMBRA_CLI = $(BIN_DIR)/umbra
 all: $(UMBRA_LIB) $(UMBRA_CLI) tests
 
 # Create necessary directories
-$(BUILD_DIR) $(OBJ_DIR) $(LIB_DIR) $(BIN_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader $(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli:
+$(BUILD_DIR) $(OBJ_DIR) $(LIB_DIR) $(BIN_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader $(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli $(OBJ_DIR)/util:
 	@mkdir -p $@
 
 # Build object files
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader $(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader $(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli $(OBJ_DIR)/util
 	@echo "CC $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
@@ -195,5 +199,5 @@ info:
 -include $(ALL_OBJS:.o=.d)
 
 # Generate dependency files
-$(OBJ_DIR)/%.d: $(SRC_DIR)/%.c | $(OBJ_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader $(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli
+$(OBJ_DIR)/%.d: $(SRC_DIR)/%.c | $(OBJ_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader $(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli $(OBJ_DIR)/util
 	@$(CC) $(CFLAGS) -MM -MT $(@:.d=.o) $< > $@

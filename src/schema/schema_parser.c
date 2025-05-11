@@ -460,6 +460,20 @@ TableSchema* parse_create_table(const char* create_statement) {
             }
         }
     }
+
+    // Add UUID column to schema
+    schema->column_count++;
+    schema->columns = realloc(schema->columns, schema->column_count * sizeof(ColumnDefinition));
+    
+    // Initialize UUID column
+    ColumnDefinition* uuid_col = &schema->columns[schema->column_count - 1];
+    strncpy(uuid_col->name, "_uuid", sizeof(uuid_col->name) - 1);
+    uuid_col->name[sizeof(uuid_col->name) - 1] = '\0';
+    uuid_col->type = TYPE_VARCHAR;
+    uuid_col->length = 36;  // Standard UUID length
+    uuid_col->nullable = false;
+    uuid_col->has_default = false;
+    uuid_col->is_primary_key = false;
     
     free_tokenizer(&tokenizer);
     DEBUG_PRINT("parse_create_table: completed successfully\n");

@@ -14,6 +14,7 @@
 #include "src/pages/page_splitter.h"
 #include "src/loader/page_manager.h"
 #include "src/loader/record_access.h"
+#include "src/query/query_executor.h"  // Add this for load_table_schema
 
 // Test data
 #define TEST_DB_DIR "./test_db"
@@ -29,8 +30,11 @@
 
 // Function declarations
 int create_test_table(void);
-int add_test_data(void);
+int add_test_data(void);  // Keep as void parameter to match usage
 int test_data_access(void);
+
+// Helper function prototype
+static int add_test_data_to_table(const char* table_name, const char* base_dir);
 
 int main(void) {
     printf("Umbra Test: Creating table with sample data\n");
@@ -147,98 +151,148 @@ int create_test_table(void) {
 }
 
 /**
- * @brief Add test data to the customers table
+ * @brief Add test data to the default test table
  */
 int add_test_data(void) {
     DEBUG_PRINT("add_test_data: start\n");
-    
-    // Define CREATE TABLE statement (for parsing)
-    const char* create_statement = 
-        "CREATE TABLE Customers ("
-        "  id INT PRIMARY KEY,"
-        "  name VARCHAR(100) NOT NULL,"
-        "  email VARCHAR(100),"
-        "  age INT,"
-        "  active BOOLEAN DEFAULT true"
-        ")";
-    
-    // Parse the statement to get schema
-    TableSchema* schema = parse_create_table(create_statement);
+    int result = add_test_data_to_table(TEST_TABLE_NAME, TEST_DB_DIR);
+    DEBUG_PRINT("add_test_data: %s\n", result == 0 ? "success" : "failure");
+    return result;
+}
+
+/**
+ * @brief Add test data to a specific table
+ */
+static int add_test_data_to_table(const char* table_name, const char* base_dir) {
+    // Load schema
+    TableSchema* schema = load_table_schema(table_name, base_dir);
     if (!schema) {
-        fprintf(stderr, "Failed to parse CREATE TABLE statement\n");
-        return 1;
+        fprintf(stderr, "Failed to load schema for table: %s\n", table_name);
+        return -1;
     }
     
-    printf("Adding test data to table: %s\n", schema->name);
+    printf("Adding test data to table: %s\n", table_name);
     
-    // Sample data
-    const char* customer_data[][5] = {
-        {"1", "John Doe", "john@example.com", "35", "true"},
-        {"2", "Jane Smith", "jane@example.com", "28", "true"},
-        {"3", "Bob Johnson", "bob@example.com", "42", "false"},
-        {"4", "Alice Brown", "alice@example.com", "31", "true"},
-        {"5", "Charlie Davis", "charlie@example.com", "45", "true"},
-        {"6", "Eva Wilson", "eva@example.com", "29", "true"},
-        {"7", "Frank Miller", "frank@example.com", "38", "false"},
-        {"8", "Grace Taylor", "grace@example.com", "26", "true"},
-        {"9", "Henry Lewis", "henry@example.com", "33", "true"},
-        {"10", "Ivy Clark", "ivy@example.com", "41", "false"}
+    // Allocate space for customer data on heap instead of stack
+    // Allocate more than necessary to ensure we have enough space
+    char** customer_data = malloc(schema->column_count * sizeof(char*));
+    if (!customer_data) {
+        fprintf(stderr, "Memory allocation failed\n");
+        free_table_schema(schema);
+        return -1;
+    }
+    
+    // Initialize all to NULL
+    for (int i = 0; i < schema->column_count; i++) {
+        customer_data[i] = NULL;
+    }
+    
+    // Generate some sample data
+    const char* names[] = {
+        "John Doe", "Jane Smith", "Bob Johnson", "Alice Brown", "Charlie Davis",
+        "Eva Wilson", "Frank Miller", "Grace Taylor", "Henry Lewis", "Ivy Clark"
     };
     
-    int num_customers = sizeof(customer_data) / sizeof(customer_data[0]);
-    int page_number = 0;
+    const char* emails[] = {
+        "john@example.com", "jane@example.com", "bob@example.com", 
+        "alice@example.com", "charlie@example.com", "eva@example.com",
+        "frank@example.com", "grace@example.com", "henry@example.com",
+        "ivy@example.com"
+    };
     
-    for (int i = 0; i < num_customers; i++) {
-        DEBUG_PRINT("Adding customer %d\n", i);
+    int page = 0;
+    bool is_full = false;
+    
+    // Insert 10 customers
+    for (int i = 0; i < 10; i++) {
+        printf("Adding customer %d: %s\n", i + 1, names[i]);
+        fprintf(stderr, "[TEST DEBUG] Adding customer %d\n", i);
         
-        // Check if current page is full
-        bool is_full;
-        if (is_page_full(schema, TEST_DB_DIR, page_number, MAX_RECORDS_PER_PAGE, &is_full) != 0) {
-            fprintf(stderr, "Failed to check if page is full\n");
-            free_table_schema(schema);
-            return 1;
-        }
-        
-        // If page is full, create a new page
-        if (is_full) {
-            page_number++;
-            printf("Creating new page: %d\n", page_number);
+        // Set values for each column
+        for (int j = 0; j < schema->column_count; j++) {
+            const ColumnDefinition* col = &schema->columns[j];
             
-            if (generate_data_page(schema, TEST_DB_DIR, page_number) != 0) {
-                fprintf(stderr, "Failed to generate new data page\n");
-                free_table_schema(schema);
-                return 1;
+            if (customer_data[j]) {
+                free(customer_data[j]);
+                customer_data[j] = NULL;
+            }
+            
+            if (strcmp(col->name, "id") == 0) {
+                customer_data[j] = malloc(16);
+                snprintf(customer_data[j], 16, "%d", i + 1);
+            } else if (strcmp(col->name, "name") == 0) {
+                customer_data[j] = strdup(names[i]);
+            } else if (strcmp(col->name, "email") == 0) {
+                customer_data[j] = strdup(emails[i]);
+            } else if (strcmp(col->name, "age") == 0) {
+                customer_data[j] = malloc(16);
+                snprintf(customer_data[j], 16, "%d", 25 + i);
+            } else if (strcmp(col->name, "active") == 0) {
+                customer_data[j] = strdup(i % 2 == 0 ? "true" : "false");
+            } else if (strcmp(col->name, "_uuid") == 0) {
+                // Generate a fake UUID for testing
+                customer_data[j] = malloc(37);
+                snprintf(customer_data[j], 37, "00000000-0000-0000-0000-%012d", i + 1);
+            } else {
+                // For other columns, use NULL
+                customer_data[j] = strdup("NULL");
             }
         }
         
-        // Add record to current page
-        printf("Adding customer %s: %s\n", customer_data[i][0], customer_data[i][1]);
+        // Check if page is full before adding
+        if (is_page_full(schema, base_dir, page, 5, &is_full) == 0) {
+            if (is_full) {
+                page++;
+                printf("Creating new page: %d\n", page);
+                
+                // Generate new page
+                if (generate_data_page(schema, base_dir, page) != 0) {
+                    fprintf(stderr, "Failed to generate new page\n");
+                    
+                    // Clean up
+                    for (int j = 0; j < schema->column_count; j++) {
+                        free(customer_data[j]);
+                    }
+                    free(customer_data);
+                    free_table_schema(schema);
+                    return -1;
+                }
+            }
+        }
         
-        if (add_record_to_page(schema, TEST_DB_DIR, page_number, customer_data[i]) != 0) {
+        // Add record to page
+        if (add_record_to_page(schema, base_dir, page, (const char**)customer_data) != 0) {
             fprintf(stderr, "Failed to add record to page\n");
+            
+            // Clean up
+            for (int j = 0; j < schema->column_count; j++) {
+                free(customer_data[j]);
+            }
+            free(customer_data);
             free_table_schema(schema);
-            return 1;
+            return -1;
         }
-    }
-    
-    // Recompile all pages
-    for (int i = 0; i <= page_number; i++) {
-        printf("Compiling page %d\n", i);
-        DEBUG_PRINT("Recompiling page %d\n", i);
         
-        if (recompile_data_page(schema, TEST_DB_DIR, i) != 0) {
-            fprintf(stderr, "Failed to compile page %d\n", i);
-            // Don't exit immediately - compilation might fail but we can still test
-            // free_table_schema(schema);
-            // return 1;
+        // Recompile the page
+        if (recompile_data_page(schema, base_dir, page) != 0) {
+            fprintf(stderr, "Failed to recompile page\n");
+            
+            // Clean up
+            for (int j = 0; j < schema->column_count; j++) {
+                free(customer_data[j]);
+            }
+            free(customer_data);
+            free_table_schema(schema);
+            return -1;
         }
     }
-    
-    printf("Added %d customers across %d pages\n", num_customers, page_number + 1);
     
     // Clean up
+    for (int j = 0; j < schema->column_count; j++) {
+        free(customer_data[j]);
+    }
+    free(customer_data);
     free_table_schema(schema);
-    DEBUG_PRINT("add_test_data: done\n");
     return 0;
 }
 
@@ -274,6 +328,7 @@ int test_data_access(void) {
         char email[101];
         int age;
         bool active;
+        char _uuid[37];  // Include the UUID field that gets added
     } Customer;
     
     // Iterate through all records
