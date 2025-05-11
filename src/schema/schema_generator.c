@@ -8,7 +8,13 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <limits.h>  // For PATH_MAX
 #include "schema_generator.h"
+
+// Define maximum path length if not defined
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 
 /**
  * @brief Convert a data type to C type string
@@ -136,7 +142,7 @@ int generate_header_file(const TableSchema* schema, const char* directory) {
     }
     
     // Create header file path
-    char header_path[2048];
+    char header_path[PATH_MAX];
     snprintf(header_path, sizeof(header_path), "%s/%s.h", directory, schema->name);
     
     // Open header file
@@ -155,7 +161,7 @@ int generate_header_file(const TableSchema* schema, const char* directory) {
         schema->name, schema->name);
     
     // Write struct definition
-    char struct_def[4096];
+    char struct_def[8192];  // Increased buffer size
     int result = generate_struct_definition(schema, struct_def, sizeof(struct_def));
     if (result < 0) {
         fclose(header_file);
@@ -195,16 +201,25 @@ int generate_empty_data_page(const TableSchema* schema, const char* directory, i
     }
     
     // Create data directory
-    char data_dir[4096];
-    snprintf(data_dir, sizeof(data_dir), "%s/data", directory);
+    char data_dir[PATH_MAX];
+    int dir_len = snprintf(data_dir, sizeof(data_dir), "%s/data", directory);
+    if (dir_len < 0 || (size_t)dir_len >= sizeof(data_dir)) {
+        fprintf(stderr, "Path too long: %s/data\n", directory);
+        return -1;
+    }
+    
     if (ensure_directory(data_dir) != 0) {
         return -1;
     }
     
     // Create data file path
-    char data_path[4096];
-    snprintf(data_path, sizeof(data_path), "%s/%sData.%d.dat.h", 
-             data_dir, schema->name, page_number);
+    char data_path[PATH_MAX];
+    int path_len = snprintf(data_path, sizeof(data_path), "%s/%sData.%d.dat.h", 
+                           data_dir, schema->name, page_number);
+    if (path_len < 0 || (size_t)path_len >= sizeof(data_path)) {
+        fprintf(stderr, "Path too long for data file\n");
+        return -1;
+    }
     
     // Open data file
     FILE* data_file = fopen(data_path, "w");
@@ -230,16 +245,25 @@ int generate_accessor_functions(const TableSchema* schema, const char* directory
     }
     
     // Create source directory
-    char src_dir[2048];
-    snprintf(src_dir, sizeof(src_dir), "%s/src", directory);
+    char src_dir[PATH_MAX];
+    int dir_len = snprintf(src_dir, sizeof(src_dir), "%s/src", directory);
+    if (dir_len < 0 || (size_t)dir_len >= sizeof(src_dir)) {
+        fprintf(stderr, "Path too long: %s/src\n", directory);
+        return -1;
+    }
+    
     if (ensure_directory(src_dir) != 0) {
         return -1;
     }
     
     // Create source file path
-    char src_path[2048];
-    snprintf(src_path, sizeof(src_path), "%s/%sData_%d.c", 
-             src_dir, schema->name, page_number);
+    char src_path[PATH_MAX];
+    int path_len = snprintf(src_path, sizeof(src_path), "%s/%sData_%d.c", 
+                           src_dir, schema->name, page_number);
+    if (path_len < 0 || (size_t)path_len >= sizeof(src_path)) {
+        fprintf(stderr, "Path too long for source file\n");
+        return -1;
+    }
     
     // Open source file
     FILE* src_file = fopen(src_path, "w");

@@ -8,7 +8,13 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <limits.h>  // For PATH_MAX
 #include "directory_manager.h"
+
+// Define maximum path length if not defined
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
 
 // Forward declarations for static functions
 static int create_directory_if_not_exists(const char* path);
@@ -51,22 +57,35 @@ int initialize_database_directory(const char* base_dir) {
     }
     
     // Create subdirectories
-    char path[2048];
+    char path[PATH_MAX];
+    int len;
     
     // Tables directory (to store table metadata)
-    snprintf(path, sizeof(path), "%s/tables", base_dir);
+    len = snprintf(path, sizeof(path), "%s/tables", base_dir);
+    if (len < 0 || (size_t)len >= sizeof(path)) {
+        fprintf(stderr, "Path too long: %s/tables\n", base_dir);
+        return -1;
+    }
     if (create_directory_if_not_exists(path) != 0) {
         return -1;
     }
     
     // Permissions directory
-    snprintf(path, sizeof(path), "%s/permissions", base_dir);
+    len = snprintf(path, sizeof(path), "%s/permissions", base_dir);
+    if (len < 0 || (size_t)len >= sizeof(path)) {
+        fprintf(stderr, "Path too long: %s/permissions\n", base_dir);
+        return -1;
+    }
     if (create_directory_if_not_exists(path) != 0) {
         return -1;
     }
     
     // Compiled directory (for .so files)
-    snprintf(path, sizeof(path), "%s/compiled", base_dir);
+    len = snprintf(path, sizeof(path), "%s/compiled", base_dir);
+    if (len < 0 || (size_t)len >= sizeof(path)) {
+        fprintf(stderr, "Path too long: %s/compiled\n", base_dir);
+        return -1;
+    }
     if (create_directory_if_not_exists(path) != 0) {
         return -1;
     }
@@ -88,22 +107,34 @@ int create_table_directory(const char* table_name, const char* base_dir) {
     }
     
     // Create table directory
-    char table_dir[2048];
-    snprintf(table_dir, sizeof(table_dir), "%s/tables/%s", base_dir, table_name);
+    char table_dir[PATH_MAX];
+    int len = snprintf(table_dir, sizeof(table_dir), "%s/tables/%s", base_dir, table_name);
+    if (len < 0 || (size_t)len >= sizeof(table_dir)) {
+        fprintf(stderr, "Path too long: %s/tables/%s\n", base_dir, table_name);
+        return -1;
+    }
     if (create_directory_if_not_exists(table_dir) != 0) {
         return -1;
     }
     
     // Create data directory
-    char data_dir[2048];
-    snprintf(data_dir, sizeof(data_dir), "%s/data", table_dir);
+    char data_dir[PATH_MAX];
+    len = snprintf(data_dir, sizeof(data_dir), "%s/data", table_dir);
+    if (len < 0 || (size_t)len >= sizeof(data_dir)) {
+        fprintf(stderr, "Path too long: %s/data\n", table_dir);
+        return -1;
+    }
     if (create_directory_if_not_exists(data_dir) != 0) {
         return -1;
     }
     
     // Create source directory
-    char src_dir[2048];
-    snprintf(src_dir, sizeof(src_dir), "%s/src", table_dir);
+    char src_dir[PATH_MAX];
+    len = snprintf(src_dir, sizeof(src_dir), "%s/src", table_dir);
+    if (len < 0 || (size_t)len >= sizeof(src_dir)) {
+        fprintf(stderr, "Path too long: %s/src\n", table_dir);
+        return -1;
+    }
     if (create_directory_if_not_exists(src_dir) != 0) {
         return -1;
     }
@@ -119,8 +150,11 @@ bool table_directory_exists(const char* table_name, const char* base_dir) {
         return false;
     }
     
-    char table_dir[2048];
-    snprintf(table_dir, sizeof(table_dir), "%s/tables/%s", base_dir, table_name);
+    char table_dir[PATH_MAX];
+    int len = snprintf(table_dir, sizeof(table_dir), "%s/tables/%s", base_dir, table_name);
+    if (len < 0 || (size_t)len >= sizeof(table_dir)) {
+        return false;
+    }
     
     struct stat st;
     if (stat(table_dir, &st) == 0 && S_ISDIR(st.st_mode)) {
