@@ -52,6 +52,9 @@ int generate_data_page(const TableSchema* schema, const char* base_dir, int page
 /**
  * @brief Add record to a data page
  */
+/**
+ * @brief Add record to a data page
+ */
 int add_record_to_page(const TableSchema* schema, const char* base_dir, 
                        int page_number, const char** values) {
     if (!schema || !base_dir || !values) {
@@ -65,7 +68,7 @@ int add_record_to_page(const TableSchema* schema, const char* base_dir,
     }
     
     // Create data file path
-    char data_path[2048];  // Increased to prevent truncation warning
+    char data_path[2048];
     snprintf(data_path, sizeof(data_path), "%s/%sData.%d.dat.h", 
              data_dir, schema->name, page_number);
     
@@ -84,19 +87,53 @@ int add_record_to_page(const TableSchema* schema, const char* base_dir,
         const ColumnDefinition* col = &schema->columns[i];
         const char* value = values[i];
         
-        // Quote string values
-        if (col->type == TYPE_VARCHAR || col->type == TYPE_TEXT) {
-            fprintf(data_file, "\"%s\"", value);
-        } else if (col->type == TYPE_BOOLEAN) {
-            // Convert boolean to lowercase
-            if (strcmp(value, "true") == 0 || strcmp(value, "TRUE") == 0 || strcmp(value, "1") == 0) {
-                fprintf(data_file, "true");
-            } else {
-                fprintf(data_file, "false");
+        // Handle NULL values
+        if (value == NULL || strcmp(value, "NULL") == 0) {
+            // For strings, use empty string; for numbers, use 0; for booleans, use false
+            switch (col->type) {
+                case TYPE_VARCHAR:
+                case TYPE_TEXT:
+                    fprintf(data_file, "\"\"");
+                    break;
+                case TYPE_INT:
+                    fprintf(data_file, "0");
+                    break;
+                case TYPE_FLOAT:
+                    fprintf(data_file, "0.0");
+                    break;
+                case TYPE_BOOLEAN:
+                    fprintf(data_file, "false");
+                    break;
+                case TYPE_DATE:
+                    fprintf(data_file, "0");
+                    break;
+                default:
+                    fprintf(data_file, "0");
+                    break;
             }
         } else {
-            // Other types are written as-is
-            fprintf(data_file, "%s", value);
+            // Quote string values
+            if (col->type == TYPE_VARCHAR || col->type == TYPE_TEXT) {
+                fprintf(data_file, "\"%s\"", value);
+            } else if (col->type == TYPE_BOOLEAN) {
+                // Convert boolean to lowercase
+                if (strcmp(value, "true") == 0 || strcmp(value, "TRUE") == 0 || strcmp(value, "1") == 0) {
+                    fprintf(data_file, "true");
+                } else {
+                    fprintf(data_file, "false");
+                }
+            } else if (col->type == TYPE_INT) {
+                // Ensure integer format (no decimal point)
+                int int_val = atoi(value);
+                fprintf(data_file, "%d", int_val);
+            } else if (col->type == TYPE_FLOAT) {
+                // Ensure float format
+                double float_val = atof(value);
+                fprintf(data_file, "%f", float_val);
+            } else {
+                // Other types are written as-is
+                fprintf(data_file, "%s", value);
+            }
         }
         
         // Add comma except for last field

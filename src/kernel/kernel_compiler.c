@@ -57,6 +57,8 @@ int generate_kernel_compile_script(const GeneratedKernel* kernel, const char* ba
                  scripts_dir, kernel->kernel_name, table_name);
     }
     
+    
+    
     // Open script file
     FILE* script = fopen(script_path, "w");
     if (!script) {
@@ -70,9 +72,11 @@ int generate_kernel_compile_script(const GeneratedKernel* kernel, const char* ba
     fprintf(script, "CC=${CC:-gcc}\n");
     fprintf(script, "CFLAGS=\"-fPIC -shared -O2 -g\"\n\n");
     
-    // Include paths
-    fprintf(script, "INCLUDE_PATHS=\"-I%s/tables/%s\"\n\n", base_dir, table_name);
-    
+
+    // Include paths - updated to include the tables directory
+    fprintf(script, "INCLUDE_PATHS=\"-I%s -I%s/tables/%s\"\n\n", base_dir, base_dir, table_name);
+
+
     // Source and output paths
     if (page_number >= 0) {
         fprintf(script, "SRC=\"%s/kernels/%s_%s_page_%d.c\"\n", 

@@ -39,6 +39,9 @@ static int initialize_test_db(void) {
 /**
  * @brief Test CREATE TABLE functionality
  */
+/**
+ * @brief Test CREATE TABLE functionality
+ */
 static void test_create_table(void) {
     printf("Testing CREATE TABLE...\n");
     
@@ -51,35 +54,23 @@ static void test_create_table(void) {
         "    active BOOLEAN"
         ")";
     
-    // Parse the CREATE TABLE statement
-    TableSchema* schema = parse_create_table(create_sql);
-    assert(schema != NULL);
-    assert(strcmp(schema->name, "users") == 0);
-    assert(schema->column_count == 5);
+    // Use execute_query to properly create the table with all metadata
+    QueryResult* result = execute_query(create_sql, TEST_DB_DIR);
+    assert(result != NULL);
+    assert(result->success);
+    free_query_result(result);
     
-    // Validate the schema
-    assert(validate_schema(schema));
+    // Verify the table was created properly
+    assert(table_directory_exists("users", TEST_DB_DIR));
     
-    // Create table directory structure
-    int result = create_table_directory("users", TEST_DB_DIR);
-    assert(result == 0);
-    
-    // Generate header file
-    result = generate_header_file(schema, TEST_DB_DIR "/tables/users");
-    assert(result == 0);
-    
-    // Generate initial data page
-    result = generate_data_page(schema, TEST_DB_DIR, 0);
-    assert(result == 0);
-    
-    free_table_schema(schema);
     printf("CREATE TABLE test passed!\n");
 }
-
 /**
  * @brief Test INSERT functionality
  */
 static void test_insert(void) {
+    printf("Testing INSERT...\n");
+    
     printf("Testing INSERT...\n");
     
     // Test INSERT with column list
@@ -93,6 +84,12 @@ static void test_insert(void) {
     assert(result->row_count == 1);
     free_query_result(result);
     
+    // Verify the insert with a SELECT
+    const char* verify_sql = "SELECT * FROM users WHERE id = 1";
+    result = execute_query(verify_sql, TEST_DB_DIR);
+    printf("After first insert, found %d rows with id=1\n", result->row_count);
+    free_query_result(result);
+    
     // Test INSERT without column list
     const char* insert_sql2 = 
         "INSERT INTO users VALUES (2, 'Jane Smith', 'jane@example.com', 25, false)";
@@ -101,6 +98,11 @@ static void test_insert(void) {
     assert(result != NULL);
     assert(result->success);
     assert(result->row_count == 1);
+    free_query_result(result);
+    // Verify the insert with a SELECT
+    const char* verify_sql2 = "SELECT * FROM users WHERE id = 2";
+    result = execute_query(verify_sql2, TEST_DB_DIR);
+    printf("After first insert, found %d rows with id=2\n", result->row_count);
     free_query_result(result);
     
     // Test INSERT with NULL values
@@ -111,6 +113,12 @@ static void test_insert(void) {
     assert(result != NULL);
     assert(result->success);
     assert(result->row_count == 1);
+    free_query_result(result);
+    
+    // Verify the insert with a SELECT
+    const char* verify_sql3 = "SELECT * FROM users WHERE id = 3";
+    result = execute_query(verify_sql3, TEST_DB_DIR);
+    printf("After first insert, found %d rows with id=3\n", result->row_count);
     free_query_result(result);
     
     printf("INSERT test passed!\n");

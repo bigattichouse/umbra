@@ -150,6 +150,11 @@ bool validate_insert_statement(const InsertStatement* stmt, const TableSchema* s
             if (!found) {
                 fprintf(stderr, "Column '%s' not found in table '%s'\n", 
                        stmt->columns[i], stmt->table_name);
+                // Debug: print all columns in schema
+                fprintf(stderr, "Available columns:\n");
+                for (int k = 0; k < schema->column_count; k++) {
+                    fprintf(stderr, "  %d: '%s'\n", k, schema->columns[k].name);
+                }
                 return false;
             }
         }

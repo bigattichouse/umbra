@@ -42,7 +42,7 @@ static int execute_kernel_on_page(const LoadedKernel* kernel, LoadedPage* page,
     }
     
     // Allocate temporary array for page data
-    void* page_data = malloc(page_count * sizeof(void*));
+    void** page_data = malloc(page_count * sizeof(void*));
     if (!page_data) {
         return -1;
     }
@@ -54,14 +54,31 @@ static int execute_kernel_on_page(const LoadedKernel* kernel, LoadedPage* page,
             free(page_data);
             return -1;
         }
-        ((void**)page_data)[i] = record;
+        page_data[i] = record;
+    }
+    
+    // Allocate space for kernel results
+    int remaining = max_results - current_count;
+    void** temp_results = malloc(remaining * sizeof(void*));
+    if (!temp_results) {
+        free(page_data);
+        return -1;
     }
     
     // Execute kernel on this page
     int results_from_page = execute_kernel(kernel, page_data, page_count,
-                                          (char*)results + current_count * sizeof(void*),
-                                          max_results - current_count);
+                                          temp_results, remaining);
     
+    if (results_from_page > 0) {
+        // Copy results to the main results buffer
+        void** main_results = (void**)results;
+        for (int i = 0; i < results_from_page; i++) {
+            main_results[current_count + i] = temp_results[i];
+            // Note: We're copying pointers - the actual data is still in the page
+        }
+    }
+    
+    free(temp_results);
     free(page_data);
     return results_from_page;
 }
@@ -163,6 +180,9 @@ int execute_select(const SelectStatement* stmt, const char* base_dir, QueryResul
         result->error_message = strdup("Table not found");
         return -1;
     }
+    if (stmt->where_clause) {
+        fprintf(stderr, "[DEBUG] SELECT has WHERE clause\n");
+    }
     
     // Generate kernel for query
     GeneratedKernel* kernel = generate_select_kernel(stmt, source_schema, base_dir);
@@ -227,12 +247,18 @@ int execute_select(const SelectStatement* stmt, const char* base_dir, QueryResul
         
         unload_page(&page);
         
+        fprintf(stderr, "[DEBUG] Page %d returned %d results\n", page_num, page_results);
+        
         if (page_results < 0) {
             break;
         }
         
         total_results += page_results;
     }
+    
+    fprintf(stderr, "[DEBUG] Total results: %d\n", total_results);
+    
+    
     
     // Set result data
     result->rows = (void**)results_buffer;

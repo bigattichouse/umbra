@@ -487,11 +487,23 @@ QueryResult* execute_query(const char* sql, const char* base_dir) {
 void free_query_result(QueryResult* result) {
     if (!result) return;
     
-    // Free rows
+    // Free rows - but be careful about what we're freeing
     if (result->rows) {
-        for (int i = 0; i < result->row_count; i++) {
-            free(result->rows[i]);
+        // For SELECT results, the row data might be pointers into loaded pages
+        // which shouldn't be freed individually
+        // Only free the rows array itself, not the individual row data
+        
+        // However, for INSERT/UPDATE/DELETE results, we do allocate the row data
+        // Check the statement type based on the schema
+        if (result->result_schema && 
+            result->result_schema->column_count == 1 &&
+            strcmp(result->result_schema->columns[0].name, "rows_affected") == 0) {
+            // This is an INSERT/UPDATE/DELETE result - free the individual rows
+            for (int i = 0; i < result->row_count; i++) {
+                free(result->rows[i]);
+            }
         }
+        // Always free the rows array itself
         free(result->rows);
     }
     

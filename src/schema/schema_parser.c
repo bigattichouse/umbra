@@ -626,101 +626,229 @@ TableSchema* load_schema_metadata(const char* table_name, const char* base_dir) 
     TableSchema* schema = malloc(sizeof(TableSchema));
     memset(schema, 0, sizeof(TableSchema));
     
-    // Simple JSON parsing (production code should use a proper JSON parser)
-    char* p = content;
-    char* line;
-    int column_idx = 0;
+    #ifdef DEBUG
+    fprintf(stderr, "[DEBUG] JSON content:\n%s\n", content);
+    #endif
+    
+    // Better JSON parsing with bounds checking
+    char* ptr = content;
+    char* end = content + file_size;  // End of buffer
+    int column_idx = -1;
     bool in_columns_array = false;
     bool in_primary_keys = false;
+    int brace_depth = 0;
+    int array_depth = 0;  // Track array depth separately
     int pk_idx = 0;
     
-    while ((line = strtok(p, "\n")) != NULL) {
-        p = NULL;  // For subsequent strtok calls
+    // Simple state machine for parsing
+    while (ptr < end && *ptr) {
+        // Skip whitespace
+        while (ptr < end && *ptr && isspace(*ptr)) ptr++;
         
-        // Skip empty lines and braces
-        if (strlen(line) == 0 || strspn(line, " \t{},[]") == strlen(line)) {
-            continue;
-        }
+        if (ptr >= end) break;
         
-        // Trim whitespace
-        while (*line == ' ' || *line == '\t') line++;
-        
-        // Parse name
-        if (strstr(line, "\"name\":") && !in_columns_array) {
-            sscanf(line, "  \"name\": \"%63[^\"]\"", schema->name);
-        }
-        // Parse column count
-        else if (strstr(line, "\"column_count\":")) {
-            sscanf(line, "  \"column_count\": %d", &schema->column_count);
-            schema->columns = malloc(schema->column_count * sizeof(ColumnDefinition));
-            memset(schema->columns, 0, schema->column_count * sizeof(ColumnDefinition));
-        }
-        // Check if entering columns array
-        else if (strstr(line, "\"columns\":")) {
-            in_columns_array = true;
-            column_idx = 0;
-        }
-        // Check if entering primary keys array
-        else if (strstr(line, "\"primary_key_columns\":")) {
-            in_primary_keys = true;
-            pk_idx = 0;
-        }
-        // Parse primary key column count
-        else if (strstr(line, "\"primary_key_column_count\":")) {
-            sscanf(line, "  \"primary_key_column_count\": %d", &schema->primary_key_column_count);
-            if (schema->primary_key_column_count > 0) {
-                schema->primary_key_columns = malloc(schema->primary_key_column_count * sizeof(int));
-            }
-        }
-        // Parse column data
-        else if (in_columns_array && column_idx < schema->column_count) {
-            ColumnDefinition* col = &schema->columns[column_idx];
-            
-            if (strstr(line, "\"name\":")) {
-                sscanf(line, "      \"name\": \"%63[^\"]\"", col->name);
-            }
-            else if (strstr(line, "\"type\":")) {
-                char type_str[32];
-                sscanf(line, "      \"type\": \"%31[^\"]\"", type_str);
-                col->type = get_type_from_name(type_str);
-            }
-            else if (strstr(line, "\"length\":")) {
-                sscanf(line, "      \"length\": %d", &col->length);
-            }
-            else if (strstr(line, "\"nullable\":")) {
-                if (strstr(line, "true")) col->nullable = true;
-                else col->nullable = false;
-            }
-            else if (strstr(line, "\"has_default\":")) {
-                if (strstr(line, "true")) col->has_default = true;
-                else col->has_default = false;
-            }
-            else if (strstr(line, "\"default_value\":")) {
-                sscanf(line, "      \"default_value\": \"%255[^\"]\"", col->default_value);
-            }
-            else if (strstr(line, "\"is_primary_key\":")) {
-                if (strstr(line, "true")) col->is_primary_key = true;
-                else col->is_primary_key = false;
-            }
-            else if (strstr(line, "}")) {
-                // End of column definition
+        if (*ptr == '{') {
+            brace_depth++;
+            // If we're in the columns array and at depth 2, this is a new column
+            if (in_columns_array && brace_depth == 2) {
                 column_idx++;
+                #ifdef DEBUG
+                fprintf(stderr, "[DEBUG] Starting column %d (brace_depth=%d)\n", column_idx, brace_depth);
+                #endif
             }
-        }
-        // Parse primary key indices
-        else if (in_primary_keys && pk_idx < schema->primary_key_column_count) {
-            int pk_col;
-            if (sscanf(line, "%d", &pk_col) == 1) {
-                schema->primary_key_columns[pk_idx++] = pk_col;
+            ptr++;
+        } else if (*ptr == '}') {
+            brace_depth--;
+            ptr++;
+        } else if (*ptr == '[') {
+            array_depth++;
+            ptr++;
+        } else if (*ptr == ']') {
+            array_depth--;
+            if (in_columns_array) {
+                in_columns_array = false;
+                column_idx = -1;
+                #ifdef DEBUG
+                fprintf(stderr, "[DEBUG] Exiting columns array\n");
+                #endif
             }
-        }
-        
-        // Check if exiting arrays
-        if (strstr(line, "]")) {
-            if (in_columns_array) in_columns_array = false;
             if (in_primary_keys) in_primary_keys = false;
+            ptr++;
+        } else if (*ptr == '"') {
+            // Parse a key-value pair
+            ptr++; // Skip opening quote
+            if (ptr >= end) break;
+            
+            char key[256];
+            int i = 0;
+            while (ptr < end && *ptr && *ptr != '"' && i < 255) {
+                key[i++] = *ptr++;
+            }
+            key[i] = '\0';
+            
+            if (ptr < end && *ptr == '"') ptr++; // Skip closing quote
+            while (ptr < end && *ptr && *ptr != ':') ptr++; // Skip to colon
+            if (ptr < end && *ptr == ':') ptr++; // Skip colon
+            while (ptr < end && *ptr && isspace(*ptr)) ptr++; // Skip whitespace
+            
+            if (ptr >= end) break;
+            
+            #ifdef DEBUG
+            if (in_columns_array && column_idx >= 0) {
+                fprintf(stderr, "[DEBUG] Parsing key '%s' for column %d\n", key, column_idx);
+            }
+            #endif
+            
+            // Now parse the value based on the key
+            if (strcmp(key, "name") == 0 && !in_columns_array && brace_depth == 1) {
+                // Top-level name field
+                if (*ptr == '"') {
+                    ptr++; // Skip opening quote
+                    if (ptr >= end) break;
+                    i = 0;
+                    while (ptr < end && *ptr && *ptr != '"' && i < 63) {
+                        schema->name[i++] = *ptr++;
+                    }
+                    schema->name[i] = '\0';
+                    if (ptr < end && *ptr == '"') ptr++; // Skip closing quote
+                }
+            } else if (strcmp(key, "column_count") == 0) {
+                schema->column_count = atoi(ptr);
+                schema->columns = malloc(schema->column_count * sizeof(ColumnDefinition));
+                memset(schema->columns, 0, schema->column_count * sizeof(ColumnDefinition));
+                while (ptr < end && *ptr && *ptr != ',' && *ptr != '}') ptr++;
+            } else if (strcmp(key, "columns") == 0) {
+                in_columns_array = true;
+                column_idx = -1;
+                #ifdef DEBUG
+                fprintf(stderr, "[DEBUG] Entering columns array\n");
+                #endif
+            } else if (strcmp(key, "primary_key_column_count") == 0) {
+                schema->primary_key_column_count = atoi(ptr);
+                if (schema->primary_key_column_count > 0) {
+                    schema->primary_key_columns = malloc(schema->primary_key_column_count * sizeof(int));
+                }
+                while (ptr < end && *ptr && *ptr != ',' && *ptr != '}') ptr++;
+            } else if (strcmp(key, "primary_key_columns") == 0) {
+                in_primary_keys = true;
+                pk_idx = 0;
+            } else if (in_columns_array && column_idx >= 0 && column_idx < schema->column_count) {
+                ColumnDefinition* col = &schema->columns[column_idx];
+                
+                if (strcmp(key, "name") == 0) {
+                    if (*ptr == '"') {
+                        ptr++; // Skip opening quote
+                        if (ptr >= end) break;
+                        i = 0;
+                        while (ptr < end && *ptr && *ptr != '"' && i < 63) {
+                            col->name[i++] = *ptr++;
+                        }
+                        col->name[i] = '\0';
+                        if (ptr < end && *ptr == '"') ptr++; // Skip closing quote
+                        #ifdef DEBUG
+                        fprintf(stderr, "[DEBUG] Set column %d name to '%s'\n", column_idx, col->name);
+                        #endif
+                    }
+                } else if (strcmp(key, "type") == 0) {
+                    if (*ptr == '"') {
+                        ptr++; // Skip opening quote
+                        if (ptr >= end) break;
+                        char type_str[32];
+                        i = 0;
+                        while (ptr < end && *ptr && *ptr != '"' && i < 31) {
+                            type_str[i++] = *ptr++;
+                        }
+                        type_str[i] = '\0';
+                        col->type = get_type_from_name(type_str);
+                        if (ptr < end && *ptr == '"') ptr++; // Skip closing quote
+                        #ifdef DEBUG
+                        fprintf(stderr, "[DEBUG] Set column %d type to %d (%s)\n", column_idx, col->type, type_str);
+                        #endif
+                    }
+                } else if (strcmp(key, "length") == 0) {
+                    col->length = atoi(ptr);
+                    while (ptr < end && *ptr && *ptr != ',' && *ptr != '}') ptr++;
+                } else if (strcmp(key, "nullable") == 0) {
+                    if (ptr + 4 <= end && strncmp(ptr, "true", 4) == 0) {
+                        col->nullable = true;
+                        ptr += 4;
+                    } else if (ptr + 5 <= end && strncmp(ptr, "false", 5) == 0) {
+                        col->nullable = false;
+                        ptr += 5;
+                    }
+                } else if (strcmp(key, "has_default") == 0) {
+                    if (ptr + 4 <= end && strncmp(ptr, "true", 4) == 0) {
+                        col->has_default = true;
+                        ptr += 4;
+                    } else if (ptr + 5 <= end && strncmp(ptr, "false", 5) == 0) {
+                        col->has_default = false;
+                        ptr += 5;
+                    }
+                } else if (strcmp(key, "default_value") == 0) {
+                    if (*ptr == '"') {
+                        ptr++; // Skip opening quote
+                        if (ptr >= end) break;
+                        i = 0;
+                        while (ptr < end && *ptr && *ptr != '"' && i < 255) {
+                            col->default_value[i++] = *ptr++;
+                        }
+                        col->default_value[i] = '\0';
+                        if (ptr < end && *ptr == '"') ptr++; // Skip closing quote
+                    }
+                } else if (strcmp(key, "is_primary_key") == 0) {
+                    if (ptr + 4 <= end && strncmp(ptr, "true", 4) == 0) {
+                        col->is_primary_key = true;
+                        ptr += 4;
+                    } else if (ptr + 5 <= end && strncmp(ptr, "false", 5) == 0) {
+                        col->is_primary_key = false;
+                        ptr += 5;
+                    }
+                } else {
+                    // Skip unknown keys in column objects
+                    if (*ptr == '"') {
+                        // Skip string value
+                        ptr++; // Skip opening quote
+                        while (ptr < end && *ptr && *ptr != '"') {
+                            if (*ptr == '\\' && ptr + 1 < end) ptr++; // Skip escaped character
+                            ptr++;
+                        }
+                        if (ptr < end && *ptr == '"') ptr++; // Skip closing quote
+                    } else {
+                        // Skip other values
+                        while (ptr < end && *ptr && *ptr != ',' && *ptr != '}') ptr++;
+                    }
+                }
+            } else if (in_primary_keys && pk_idx < schema->primary_key_column_count) {
+                schema->primary_key_columns[pk_idx++] = atoi(ptr);
+                while (ptr < end && *ptr && *ptr != ',' && *ptr != ']') ptr++;
+            } else {
+                // Skip unknown values
+                if (*ptr == '"') {
+                    // Skip string value
+                    ptr++; // Skip opening quote
+                    while (ptr < end && *ptr && *ptr != '"') {
+                        if (*ptr == '\\' && ptr + 1 < end) ptr++; // Skip escaped character
+                        ptr++;
+                    }
+                    if (ptr < end && *ptr == '"') ptr++; // Skip closing quote
+                } else {
+                    // Skip other values
+                    while (ptr < end && *ptr && *ptr != ',' && *ptr != '}' && *ptr != ']') ptr++;
+                }
+            }
+        } else if (*ptr == ',') {
+            ptr++; // Skip comma
+        } else {
+            ptr++;
         }
     }
+    
+    #ifdef DEBUG
+    fprintf(stderr, "[DEBUG] Parsed schema: name=%s, columns=%d\n", schema->name, schema->column_count);
+    for (int i = 0; i < schema->column_count; i++) {
+        fprintf(stderr, "[DEBUG] Column %d: name=%s, type=%d\n", i, schema->columns[i].name, schema->columns[i].type);
+    }
+    #endif
     
     free(content);
     return schema;

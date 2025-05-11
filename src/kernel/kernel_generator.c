@@ -69,6 +69,9 @@ static void add_dependency(GeneratedKernel* kernel, const char* header) {
 /**
  * @brief Generate includes section
  */
+/**
+ * @brief Generate includes section
+ */
 static void generate_includes(GeneratedKernel* kernel, const TableSchema* schema,
                              char** code, size_t* code_size) {
     char buffer[1024];
@@ -79,8 +82,8 @@ static void generate_includes(GeneratedKernel* kernel, const TableSchema* schema
         "#include <stdlib.h>\n"
         "#include <string.h>\n"
         "#include <stdbool.h>\n"
-        "#include \"../../%s.h\"\n\n",
-        schema->name);
+        "#include \"../tables/%s/%s.h\"\n\n",
+        schema->name, schema->name);
     
     *code = realloc(*code, *code_size + strlen(buffer) + 1);
     strcat(*code, buffer);
@@ -91,7 +94,6 @@ static void generate_includes(GeneratedKernel* kernel, const TableSchema* schema
     snprintf(schema_header, sizeof(schema_header), "%s.h", schema->name);
     add_dependency(kernel, schema_header);
 }
-
 /**
  * @brief Generate result structure
  */
@@ -300,6 +302,9 @@ int write_kernel_source(const GeneratedKernel* kernel, const char* base_dir,
     fprintf(file, "/* Kernel: %s */\n\n", kernel->kernel_name);
     
     fprintf(file, "%s", kernel->code);
+    
+    // Debug: Print the generated kernel code
+    fprintf(stderr, "[DEBUG] Generated kernel code:\n%s\n", kernel->code);
     
     fclose(file);
     return 0;
