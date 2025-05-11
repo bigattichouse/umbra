@@ -12,6 +12,7 @@
 #include <time.h>    // Add this for time() function
 #include "update_executor.h"
 #include "../schema/metadata.h"
+#include "../schema/type_system.h"
 #include "../loader/page_manager.h"
 #include "../loader/record_access.h"
 #include "../kernel/kernel_generator.h"
@@ -225,8 +226,24 @@ UpdateResult* execute_update(const UpdateStatement* stmt, const char* base_dir) 
             read_record(&page, i, &records[i]);
         }
         
-        // Execute kernel to find matching records
-        void* matches = malloc(page_records * sizeof(void*));
+        // Calculate the actual record size
+        size_t record_size = calculate_record_size(schema);
+
+        // Allocate space for full record structures
+        void* matches = malloc(page_records * record_size);
+
+        if (!matches) {
+            fprintf(stderr, "Failed to allocate matches buffer\n");
+            unload_page(&page);
+            continue;
+        }
+
+        if (!matches) {
+            fprintf(stderr, "Failed to allocate matches buffer\n");
+            unload_page(&page);
+            continue;
+        }
+
         int match_count = execute_kernel(&loaded_kernel, records, page_records,
                                        matches, page_records);
         

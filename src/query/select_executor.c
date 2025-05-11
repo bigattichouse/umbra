@@ -8,6 +8,7 @@
 #include <string.h>
 #include <dirent.h>
 #include "select_executor.h"
+#include "../schema/type_system.h"
 #include "../kernel/kernel_generator.h"
 #include "../kernel/kernel_compiler.h"
 #include "../kernel/kernel_loader.h"
@@ -41,45 +42,63 @@ static int execute_kernel_on_page(const LoadedKernel* kernel, LoadedPage* page,
         return -1;
     }
     
-    // Allocate temporary array for page data
-    void** page_data = malloc(page_count * sizeof(void*));
-    if (!page_data) {
-        return -1;
+    // The kernel expects a pointer to the first element of a contiguous array
+    // of structs, not an array of pointers. The page's data is already in
+    // a contiguous array, so we just need to get a pointer to the first record.
+    void* first_record;
+    if (page_count == 0 || read_record(page, 0, &first_record) != 0) {
+        return 0; // No records to process
     }
     
-    // Read all records from page
-    for (int i = 0; i < page_count; i++) {
-        void* record;
-        if (read_record(page, i, &record) != 0) {
-            free(page_data);
-            return -1;
+    // Debug output
+    #ifdef DEBUG
+    fprintf(stderr, "[DEBUG] Passing %d records to kernel\n", page_count);
+    
+    // Show the raw data as the kernel will see it
+    if (strcmp(page->table_name, "users") == 0) {
+        for (int i = 0; i < page_count; i++) {
+            void* record;
+            if (read_record(page, i, &record) != 0) {
+                break;
+            }
+            
+            fprintf(stderr, "[DEBUG] Raw record %d data (first 600 bytes):\n", i);
+            unsigned char* bytes = (unsigned char*)record;
+            
+            // Print enough bytes to cover the entire struct
+            int bytes_to_print = 600;  // Should be enough for the users struct
+            for (int j = 0; j < bytes_to_print; j++) {
+                fprintf(stderr, "%02x ", bytes[j]);
+                if ((j + 1) % 16 == 0) fprintf(stderr, "\n");
+            }
+            fprintf(stderr, "\n");
+            
+            // Try to interpret the fields manually based on known offsets
+            int* id_ptr = (int*)record;
+            char* name_ptr = (char*)((char*)record + 4);
+            char* email_ptr = (char*)((char*)record + 4 + 256);
+            int* age_ptr = (int*)((char*)record + 4 + 256 + 256);
+            
+            fprintf(stderr, "[DEBUG] Field interpretation - id: %d, name: '%s', email: '%s', age: %d\n",
+                    *id_ptr, name_ptr, email_ptr, *age_ptr);
         }
-        page_data[i] = record;
     }
+    #endif
     
     // Allocate space for kernel results
     int remaining = max_results - current_count;
-    void** temp_results = malloc(remaining * sizeof(void*));
-    if (!temp_results) {
-        free(page_data);
-        return -1;
-    }
     
-    // Execute kernel on this page
-    int results_from_page = execute_kernel(kernel, page_data, page_count,
-                                          temp_results, remaining);
+    // The kernel expects the data as a contiguous array, which it already is
+    // in the page. We pass the pointer to the first record, and the kernel
+    // will treat it as an array.
+    int results_from_page = execute_kernel(kernel, first_record, page_count,
+                                          (char*)results + current_count * sizeof(void*), 
+                                          remaining);
     
-    if (results_from_page > 0) {
-        // Copy results to the main results buffer
-        void** main_results = (void**)results;
-        for (int i = 0; i < results_from_page; i++) {
-            main_results[current_count + i] = temp_results[i];
-            // Note: We're copying pointers - the actual data is still in the page
-        }
-    }
+    #ifdef DEBUG
+    fprintf(stderr, "[DEBUG] Kernel returned %d results\n", results_from_page);
+    #endif
     
-    free(temp_results);
-    free(page_data);
     return results_from_page;
 }
 

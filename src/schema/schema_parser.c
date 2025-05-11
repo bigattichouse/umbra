@@ -11,6 +11,7 @@
 #include <sys/types.h>   // Add this for mode_t
 #include <errno.h>       // Add this for errno
 #include "schema_parser.h"
+#include "type_system.h"   // Add explicit include for type system functions
 
 #ifdef DEBUG
 #define DEBUG_PRINT(...) fprintf(stderr, "[DEBUG] " __VA_ARGS__)
@@ -44,6 +45,7 @@ typedef struct {
     int length;
     Token current_token;
 } Tokenizer;
+
 
 /**
  * @brief Initialize a tokenizer with input

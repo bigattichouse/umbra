@@ -9,6 +9,7 @@
 #include <ctype.h>
 #include <time.h>
 #include "type_system.h"
+#include "../schema/schema_parser.h"
 
 /**
  * @brief Type information table
@@ -356,4 +357,69 @@ int convert_to_text(const void* value, DataType type, char* output, size_t outpu
         default:
             return -1;
     }
+}
+
+/**
+ * @brief Calculate the size of a record based on schema
+ */
+size_t calculate_record_size(const struct TableSchema* schema) {
+    if (!schema) {
+        return 0;
+    }
+    
+    /* Cast to the proper type using the full definition from schema_parser.h */
+    const TableSchema* typed_schema = (const TableSchema*)schema;
+    
+    size_t size = 0;
+    
+    for (int i = 0; i < typed_schema->column_count; i++) {
+        const ColumnDefinition* col = &typed_schema->columns[i];
+        
+        // Add appropriate padding for alignment
+        switch (col->type) {
+            case TYPE_INT:
+                // Align to 4-byte boundary
+                size = (size + 3) & ~3;
+                size += sizeof(int);
+                break;
+                
+            case TYPE_FLOAT:
+                // Align to 8-byte boundary  
+                size = (size + 7) & ~7;
+                size += sizeof(double);
+                break;
+                
+            case TYPE_BOOLEAN:
+                size += sizeof(bool);
+                break;
+                
+            case TYPE_DATE:
+                // Align to 8-byte boundary (time_t is typically 8 bytes)
+                size = (size + 7) & ~7;
+                size += sizeof(time_t);
+                break;
+                
+            case TYPE_VARCHAR:
+                // Strings don't need special alignment
+                size += col->length + 1; // +1 for null terminator
+                break;
+                
+            case TYPE_TEXT:
+                // TEXT fields have a default maximum size
+                size += 4096;
+                break;
+                
+            case TYPE_UNKNOWN:
+            default:
+                // Unknown types - add some default space
+                size += 8;
+                break;
+        }
+    }
+    
+    // Add final padding to ensure structure alignment
+    // Most architectures require structs to be aligned to their largest member
+    size = (size + 7) & ~7;
+    
+    return size;
 }

@@ -148,7 +148,15 @@ static int generate_expression(const Expression* expr, const TableSchema* schema
  */
 int generate_filter_condition(const Expression* expr, const TableSchema* schema,
                              char* output, size_t output_size) {
-    return generate_expression(expr, schema, output, output_size);
+    int result = generate_expression(expr, schema, output, output_size);
+    
+    #ifdef DEBUG
+    if (result == 0) {
+        fprintf(stderr, "[DEBUG] Generated filter condition: %s\n", output);
+    }
+    #endif
+    
+    return result;
 }
 
 /**

@@ -29,32 +29,41 @@ typedef enum {
  * @brief Information about a data type
  */
 typedef struct {
-    DataType type;                  /**< Type identifier */
-    const char* name;               /**< Type name */
-    size_t size;                    /**< Size in bytes */
-    bool variable_length;           /**< Whether type has variable length */
-    bool requires_length;           /**< Whether type requires length parameter */
+    DataType type;
+    const char* name;
+    size_t base_size;
+    bool is_variable_length;
+    bool requires_length;
 } TypeInfo;
 
 /**
  * @brief Get information about a data type
  * @param type Data type
- * @return TypeInfo structure for the type
+ * @return Type information
  */
 TypeInfo get_type_info(DataType type);
 
 /**
  * @brief Get data type from string name
  * @param type_name Type name string
- * @return DataType value or TYPE_UNKNOWN if not found
+ * @return Data type enum value
  */
 DataType get_type_from_name(const char* type_name);
+
+/**
+ * @brief Validate a value for a data type
+ * @param value Value to validate
+ * @param type Data type
+ * @param length Length (for variable-length types)
+ * @return true if valid, false otherwise
+ */
+bool validate_value(const char* value, DataType type, int length);
 
 /**
  * @brief Convert a value from text to its proper type
  * @param value Text value
  * @param type Target data type
- * @param output Buffer to store converted value
+ * @param output Output buffer
  * @param output_size Size of output buffer
  * @return 0 on success, -1 on error
  */
@@ -62,21 +71,22 @@ int convert_value(const char* value, DataType type, void* output, size_t output_
 
 /**
  * @brief Convert a value to text representation
- * @param value Input value pointer
- * @param type Data type
- * @param output Text output buffer
+ * @param value Value to convert
+ * @param type Data type of value
+ * @param output Output buffer
  * @param output_size Size of output buffer
- * @return Number of bytes written, or -1 on error
+ * @return Number of characters written, or -1 on error
  */
 int convert_to_text(const void* value, DataType type, char* output, size_t output_size);
 
+/* Forward declaration to resolve circular dependency */
+struct TableSchema;
+
 /**
- * @brief Validate a value for a data type
- * @param value Value to validate
- * @param type Type to validate against
- * @param length Length for variable-length types
- * @return true if valid, false otherwise
+ * @brief Calculate the size of a record based on schema
+ * @param schema Table schema
+ * @return Size of a single record in bytes
  */
-bool validate_value(const char* value, DataType type, int length);
+size_t calculate_record_size(const struct TableSchema* schema);
 
 #endif /* UMBRA_TYPE_SYSTEM_H */

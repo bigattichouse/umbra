@@ -12,6 +12,7 @@
 #include <time.h>
 #include "delete_executor.h"
 #include "../schema/metadata.h"
+#include "../schema/type_system.h"
 #include "../loader/page_manager.h"
 #include "../loader/record_access.h"
 #include "../kernel/kernel_generator.h"
@@ -183,7 +184,17 @@ DeleteResult* execute_delete(const DeleteStatement* stmt, const char* base_dir) 
         
         if (stmt->where_clause && kernel_loaded) {
             // Use kernel to find matching records
-            void* matches = malloc(page_records * sizeof(void*));
+            // Calculate the actual record size
+            size_t record_size = calculate_record_size(schema);
+
+            // Allocate space for full record structures
+            void* matches = malloc(page_records * record_size);
+
+            if (!matches) {
+                fprintf(stderr, "Failed to allocate matches buffer\n");
+                unload_page(&page);
+                continue;
+            }
             delete_count = execute_kernel(&loaded_kernel, records, page_records,
                                         matches, page_records);
             

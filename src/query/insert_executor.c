@@ -11,6 +11,7 @@
 #include <time.h>
 #include "insert_executor.h"
 #include "../schema/metadata.h"
+#include "../schema/type_system.h"
 #include "../loader/page_manager.h"
 #include "../pages/page_generator.h"
 #include "../pages/page_splitter.h"
@@ -129,6 +130,7 @@ InsertResult* execute_insert(const InsertStatement* stmt, const char* base_dir) 
         }
         
         // Set defaults for missing columns
+        // Set defaults for missing columns
         for (int i = 0; i < schema->column_count; i++) {
             if (values[i] == NULL) {
                 if (schema->columns[i].has_default) {
@@ -136,16 +138,25 @@ InsertResult* execute_insert(const InsertStatement* stmt, const char* base_dir) 
                 } else if (schema->columns[i].nullable) {
                     values[i] = strdup("NULL");
                 } else {
-                    set_insert_error(result, "No value provided for non-nullable column '%s'",
-                                    schema->columns[i].name);
-                    
-                    // Clean up
-                    for (int j = 0; j < schema->column_count; j++) {
-                        free((char*)values[j]);
+                    // For non-nullable columns without defaults, use zero values
+                    switch (schema->columns[i].type) {
+                        case TYPE_INT:
+                            values[i] = strdup("0");
+                            break;
+                        case TYPE_FLOAT:
+                            values[i] = strdup("0.0");
+                            break;
+                        case TYPE_BOOLEAN:
+                            values[i] = strdup("false");
+                            break;
+                        case TYPE_VARCHAR:
+                        case TYPE_TEXT:
+                            values[i] = strdup("");
+                            break;
+                        default:
+                            values[i] = strdup("0");
+                            break;
                     }
-                    free(values);
-                    free_table_schema(schema);
-                    return result;
                 }
             }
         }

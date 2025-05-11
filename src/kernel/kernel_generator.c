@@ -142,10 +142,14 @@ static void generate_kernel_function(const SelectStatement* stmt, const TableSch
     strcat(*code, buffer);
     *code_size += strlen(buffer);
     
-    // Main processing loop
+    // In generate_kernel_function, add debug output in the main loop:
     snprintf(buffer, sizeof(buffer),
         "    for (int i = 0; i < count && result_count < max_results; i++) {\n"
-        "        %s* record = &data[i];\n",
+        "        %s* record = &data[i];\n"
+        "        \n"
+        "#ifdef DEBUG\n"
+        "        fprintf(stderr, \"[KERNEL DEBUG] Record %%d: id=%%d, age=%%d\\n\", i, record->id, record->age);\n"
+        "#endif\n",
         schema->name);
     
     *code = realloc(*code, *code_size + strlen(buffer) + 1);
@@ -239,6 +243,10 @@ GeneratedKernel* generate_select_kernel(const SelectStatement* stmt,
     
     // Generate kernel function
     generate_kernel_function(stmt, schema, kernel_name, &kernel->code, &code_size);
+    
+    #ifdef DEBUG
+    fprintf(stderr, "[DEBUG] Generated kernel code:\n%s\n", kernel->code);
+    #endif
     
     return kernel;
 }
