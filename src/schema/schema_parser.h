@@ -55,4 +55,22 @@ void free_table_schema(TableSchema* schema);
  */
 bool validate_schema(const TableSchema* schema);
 
+// Add these to schema_parser.h after the existing function declarations:
+
+/**
+ * @brief Save schema metadata to file
+ * @param schema Schema to save
+ * @param base_dir Base directory for database
+ * @return 0 on success, -1 on error
+ */
+int save_schema_metadata(const TableSchema* schema, const char* base_dir);
+
+/**
+ * @brief Load schema metadata from file
+ * @param table_name Table name
+ * @param base_dir Base directory for database
+ * @return Loaded schema or NULL on error
+ */
+TableSchema* load_schema_metadata(const char* table_name, const char* base_dir);
+
 #endif /* UMBRA_SCHEMA_PARSER_H */

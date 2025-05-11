@@ -505,3 +505,220 @@ bool validate_schema(const TableSchema* schema) {
     DEBUG_PRINT("validate_schema: schema is valid\n");
     return true;
 }
+
+/**
+ * @brief Save schema to metadata file (JSON format)
+ * @param schema Schema to save
+ * @param base_dir Base directory for database
+ * @return 0 on success, -1 on error
+ */
+int save_schema_metadata(const TableSchema* schema, const char* base_dir) {
+    if (!schema || !base_dir) {
+        return -1;
+    }
+    
+    // Create metadata directory if it doesn't exist
+    char metadata_dir[2048];
+    snprintf(metadata_dir, sizeof(metadata_dir), "%s/tables/%s/metadata", 
+             base_dir, schema->name);
+    
+    struct stat st;
+    if (stat(metadata_dir, &st) != 0) {
+        if (mkdir(metadata_dir, 0755) != 0) {
+            fprintf(stderr, "Failed to create metadata directory: %s\n", strerror(errno));
+            return -1;
+        }
+    }
+    
+    // Create schema metadata file path
+    char metadata_path[2560];
+    snprintf(metadata_path, sizeof(metadata_path), "%s/schema.json", metadata_dir);
+    
+    FILE* file = fopen(metadata_path, "w");
+    if (!file) {
+        fprintf(stderr, "Failed to open schema metadata file for writing: %s\n", strerror(errno));
+        return -1;
+    }
+    
+    // Write schema in JSON format
+    fprintf(file, "{\n");
+    fprintf(file, "  \"name\": \"%s\",\n", schema->name);
+    fprintf(file, "  \"column_count\": %d,\n", schema->column_count);
+    fprintf(file, "  \"columns\": [\n");
+    
+    for (int i = 0; i < schema->column_count; i++) {
+        const ColumnDefinition* col = &schema->columns[i];
+        fprintf(file, "    {\n");
+        fprintf(file, "      \"name\": \"%s\",\n", col->name);
+        fprintf(file, "      \"type\": \"%s\",\n", get_type_info(col->type).name);
+        fprintf(file, "      \"length\": %d,\n", col->length);
+        fprintf(file, "      \"nullable\": %s,\n", col->nullable ? "true" : "false");
+        fprintf(file, "      \"has_default\": %s,\n", col->has_default ? "true" : "false");
+        
+        if (col->has_default) {
+            fprintf(file, "      \"default_value\": \"%s\",\n", col->default_value);
+        }
+        
+        fprintf(file, "      \"is_primary_key\": %s\n", col->is_primary_key ? "true" : "false");
+        fprintf(file, "    }%s\n", i < schema->column_count - 1 ? "," : "");
+    }
+    
+    fprintf(file, "  ],\n");
+    fprintf(file, "  \"primary_key_column_count\": %d", schema->primary_key_column_count);
+    
+    if (schema->primary_key_column_count > 0 && schema->primary_key_columns) {
+        fprintf(file, ",\n  \"primary_key_columns\": [");
+        for (int i = 0; i < schema->primary_key_column_count; i++) {
+            fprintf(file, "%d", schema->primary_key_columns[i]);
+            if (i < schema->primary_key_column_count - 1) {
+                fprintf(file, ", ");
+            }
+        }
+        fprintf(file, "]");
+    }
+    
+    fprintf(file, "\n}\n");
+    
+    fclose(file);
+    return 0;
+}
+
+/**
+ * @brief Load schema from metadata file (JSON format)
+ * @param table_name Table name
+ * @param base_dir Base directory for database
+ * @return Loaded schema or NULL on error
+ */
+TableSchema* load_schema_metadata(const char* table_name, const char* base_dir) {
+    if (!table_name || !base_dir) {
+        return NULL;
+    }
+    
+    // Create schema metadata file path
+    char metadata_path[2560];
+    snprintf(metadata_path, sizeof(metadata_path), "%s/tables/%s/metadata/schema.json", 
+             base_dir, table_name);
+    
+    FILE* file = fopen(metadata_path, "r");
+    if (!file) {
+        return NULL;
+    }
+    
+    // Read entire file
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    char* content = malloc(file_size + 1);
+    if (!content) {
+        fclose(file);
+        return NULL;
+    }
+    
+    fread(content, 1, file_size, file);
+    content[file_size] = '\0';
+    fclose(file);
+    
+    // Create schema
+    TableSchema* schema = malloc(sizeof(TableSchema));
+    memset(schema, 0, sizeof(TableSchema));
+    
+    // Simple JSON parsing (production code should use a proper JSON parser)
+    char* p = content;
+    char* line;
+    int column_idx = 0;
+    bool in_columns_array = false;
+    bool in_primary_keys = false;
+    int pk_idx = 0;
+    
+    while ((line = strtok(p, "\n")) != NULL) {
+        p = NULL;  // For subsequent strtok calls
+        
+        // Skip empty lines and braces
+        if (strlen(line) == 0 || strspn(line, " \t{},[]") == strlen(line)) {
+            continue;
+        }
+        
+        // Trim whitespace
+        while (*line == ' ' || *line == '\t') line++;
+        
+        // Parse name
+        if (strstr(line, "\"name\":") && !in_columns_array) {
+            sscanf(line, "  \"name\": \"%63[^\"]\"", schema->name);
+        }
+        // Parse column count
+        else if (strstr(line, "\"column_count\":")) {
+            sscanf(line, "  \"column_count\": %d", &schema->column_count);
+            schema->columns = malloc(schema->column_count * sizeof(ColumnDefinition));
+            memset(schema->columns, 0, schema->column_count * sizeof(ColumnDefinition));
+        }
+        // Check if entering columns array
+        else if (strstr(line, "\"columns\":")) {
+            in_columns_array = true;
+            column_idx = 0;
+        }
+        // Check if entering primary keys array
+        else if (strstr(line, "\"primary_key_columns\":")) {
+            in_primary_keys = true;
+            pk_idx = 0;
+        }
+        // Parse primary key column count
+        else if (strstr(line, "\"primary_key_column_count\":")) {
+            sscanf(line, "  \"primary_key_column_count\": %d", &schema->primary_key_column_count);
+            if (schema->primary_key_column_count > 0) {
+                schema->primary_key_columns = malloc(schema->primary_key_column_count * sizeof(int));
+            }
+        }
+        // Parse column data
+        else if (in_columns_array && column_idx < schema->column_count) {
+            ColumnDefinition* col = &schema->columns[column_idx];
+            
+            if (strstr(line, "\"name\":")) {
+                sscanf(line, "      \"name\": \"%63[^\"]\"", col->name);
+            }
+            else if (strstr(line, "\"type\":")) {
+                char type_str[32];
+                sscanf(line, "      \"type\": \"%31[^\"]\"", type_str);
+                col->type = get_type_from_name(type_str);
+            }
+            else if (strstr(line, "\"length\":")) {
+                sscanf(line, "      \"length\": %d", &col->length);
+            }
+            else if (strstr(line, "\"nullable\":")) {
+                if (strstr(line, "true")) col->nullable = true;
+                else col->nullable = false;
+            }
+            else if (strstr(line, "\"has_default\":")) {
+                if (strstr(line, "true")) col->has_default = true;
+                else col->has_default = false;
+            }
+            else if (strstr(line, "\"default_value\":")) {
+                sscanf(line, "      \"default_value\": \"%255[^\"]\"", col->default_value);
+            }
+            else if (strstr(line, "\"is_primary_key\":")) {
+                if (strstr(line, "true")) col->is_primary_key = true;
+                else col->is_primary_key = false;
+            }
+            else if (strstr(line, "}")) {
+                // End of column definition
+                column_idx++;
+            }
+        }
+        // Parse primary key indices
+        else if (in_primary_keys && pk_idx < schema->primary_key_column_count) {
+            int pk_col;
+            if (sscanf(line, "%d", &pk_col) == 1) {
+                schema->primary_key_columns[pk_idx++] = pk_col;
+            }
+        }
+        
+        // Check if exiting arrays
+        if (strstr(line, "]")) {
+            if (in_columns_array) in_columns_array = false;
+            if (in_primary_keys) in_primary_keys = false;
+        }
+    }
+    
+    free(content);
+    return schema;
+}
