@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <sys/stat.h>
+#include <errno.h>
 #include "src/schema/schema_parser.h"
 #include "src/schema/schema_generator.h"
 #include "src/schema/directory_manager.h"
@@ -97,9 +99,63 @@ int create_test_table(void) {
         free_table_schema(schema);
         return 1;
     }
+
+    // After validating the schema
+    printf("Schema validation passed, saving metadata...\n");
+    if (save_schema_metadata(schema, TEST_DB_DIR) != 0) {
+        fprintf(stderr, "Failed to save schema metadata\n");
+        free_table_schema(schema);
+        return 1;
+    }
+    printf("Schema metadata saved successfully\n");
+    
+    // Validate the schema
+    if (!validate_schema(schema)) {
+        fprintf(stderr, "Invalid schema\n");
+        free_table_schema(schema);
+        return 1;
+    }
     
     printf("Schema parsed successfully. Table: %s, Columns: %d\n", 
            schema->name, schema->column_count);
+           
+           
+           printf("Schema validation passed, attempting manual directory creation...\n");
+
+        // Get the exact path the metadata save function expects
+        char metadata_dir[2048];
+        snprintf(metadata_dir, sizeof(metadata_dir), "%s/tables/%s/metadata", 
+                 TEST_DB_DIR, schema->name);
+
+        printf("Checking directory: %s\n", metadata_dir);
+
+        // Try to create parent directories first
+        char parent_dir[2048];
+        snprintf(parent_dir, sizeof(parent_dir), "%s/tables", TEST_DB_DIR);
+        mkdir(parent_dir, 0755);
+        printf("Created parent dir: %s\n", parent_dir);
+
+        // Create table dir
+        snprintf(parent_dir, sizeof(parent_dir), "%s/tables/%s", TEST_DB_DIR, schema->name);
+        mkdir(parent_dir, 0755);
+        printf("Created table dir: %s\n", parent_dir);
+
+        // Now create metadata dir
+        printf("Creating metadata dir: %s\n", metadata_dir);
+        if (mkdir(metadata_dir, 0755) != 0) {
+            printf("Failed to create dir: %s (error: %s)\n", metadata_dir, strerror(errno));
+        } else {
+            printf("Successfully created metadata directory\n");
+        }
+
+        // Now try to save metadata
+        printf("Now trying to save schema metadata...\n");
+        if (save_schema_metadata(schema, TEST_DB_DIR) != 0) {
+            fprintf(stderr, "Failed to save schema metadata\n");
+            free_table_schema(schema);
+            return 1;
+        }
+        printf("Schema metadata saved successfully\n");
     
     DEBUG_PRINT("Initializing database directory: %s\n", TEST_DB_DIR);
     // Initialize database directory

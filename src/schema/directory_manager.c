@@ -117,6 +117,17 @@ int create_table_directory(const char* table_name, const char* base_dir) {
         return -1;
     }
     
+    // Create metadata directory
+    char metadata_dir[PATH_MAX];
+    len = snprintf(metadata_dir, sizeof(metadata_dir), "%s/metadata", table_dir);
+    if (len < 0 || (size_t)len >= sizeof(metadata_dir)) {
+        fprintf(stderr, "Path too long: %s/metadata\n", table_dir);
+        return -1;
+    }
+    if (create_directory_if_not_exists(metadata_dir) != 0) {
+        return -1;
+    }
+    
     // Create data directory
     char data_dir[PATH_MAX];
     len = snprintf(data_dir, sizeof(data_dir), "%s/data", table_dir);
