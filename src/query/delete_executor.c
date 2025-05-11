@@ -185,7 +185,7 @@ DeleteResult* execute_delete(const DeleteStatement* stmt, const char* base_dir) 
         if (stmt->where_clause && kernel_loaded) {
             // Use kernel to find matching records
             // Calculate the actual record size
-            size_t record_size = calculate_record_size(schema);
+            size_t record_size = calculate_record_size((const struct TableSchema*)schema);
 
             // Allocate space for full record structures
             void* matches = malloc(page_records * record_size);

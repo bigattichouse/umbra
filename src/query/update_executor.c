@@ -227,7 +227,7 @@ UpdateResult* execute_update(const UpdateStatement* stmt, const char* base_dir) 
         }
         
         // Calculate the actual record size
-        size_t record_size = calculate_record_size(schema);
+        size_t record_size = calculate_record_size((const struct TableSchema*)schema);
 
         // Allocate space for full record structures
         void* matches = malloc(page_records * record_size);
