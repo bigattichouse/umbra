@@ -19,6 +19,7 @@
 #include "../kernel/kernel_loader.h"
 #include "../pages/page_generator.h"
 #include "../pages/page_splitter.h"
+#include "../query/query_executor.h" 
 
 /**
  * @brief Create update result
@@ -46,38 +47,6 @@ static void set_update_error(UpdateResult* result, const char* format, ...) {
     result->error_message = strdup(buffer);
     
     va_end(args);
-}
-
-/**
- * @brief Load table schema (temporary implementation)
- */
-static TableSchema* load_table_schema(const char* table_name, const char* base_dir) {
-    (void)base_dir;  // Suppress unused parameter warning
-    
-    // TODO: Actually load from metadata files
-    TableSchema* schema = malloc(sizeof(TableSchema));
-    strncpy(schema->name, table_name, sizeof(schema->name) - 1);
-    schema->name[sizeof(schema->name) - 1] = '\0';
-    
-    // Mock schema
-    schema->column_count = 3;
-    schema->columns = malloc(3 * sizeof(ColumnDefinition));
-    
-    strncpy(schema->columns[0].name, "id", sizeof(schema->columns[0].name) - 1);
-    schema->columns[0].type = TYPE_INT;
-    schema->columns[0].nullable = false;
-    schema->columns[0].is_primary_key = true;
-    
-    strncpy(schema->columns[1].name, "name", sizeof(schema->columns[1].name) - 1);
-    schema->columns[1].type = TYPE_VARCHAR;
-    schema->columns[1].length = 255;
-    schema->columns[1].nullable = true;
-    
-    strncpy(schema->columns[2].name, "age", sizeof(schema->columns[2].name) - 1);
-    schema->columns[2].type = TYPE_INT;
-    schema->columns[2].nullable = true;
-    
-    return schema;
 }
 
 /**
@@ -172,7 +141,7 @@ UpdateResult* execute_update(const UpdateStatement* stmt, const char* base_dir) 
         return result;
     }
     
-    // Load table schema
+    // Load table schema using the shared function
     TableSchema* schema = load_table_schema(stmt->table_name, base_dir);
     if (!schema) {
         set_update_error(result, "Table '%s' not found", stmt->table_name);

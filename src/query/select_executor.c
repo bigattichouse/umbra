@@ -11,10 +11,11 @@
 #include "../kernel/kernel_generator.h"
 #include "../kernel/kernel_compiler.h"
 #include "../kernel/kernel_loader.h"
-#include "../kernel/filter_generator.h"  // Added for validate_filter_expression
-#include "../kernel/projection_generator.h"  // Added for validate_select_list
+#include "../kernel/filter_generator.h"
+#include "../kernel/projection_generator.h"
 #include "../loader/page_manager.h"
 #include "../loader/record_access.h"
+#include "../query/query_executor.h"  
 
 /**
  * @brief Get maximum result size estimate
@@ -154,21 +155,14 @@ TableSchema* build_result_schema(const SelectStatement* stmt, const TableSchema*
  * @brief Execute a SELECT statement
  */
 int execute_select(const SelectStatement* stmt, const char* base_dir, QueryResult* result) {
-    const char* table_name = stmt->from_table->table_name;
+        const char* table_name = stmt->from_table->table_name;
     
-    // Load source table schema
-    TableSchema* source_schema = malloc(sizeof(TableSchema));
-    // TODO: Actually load schema from metadata
-    // For now, create a simple test schema
-    source_schema->column_count = 3;
-    source_schema->columns = malloc(3 * sizeof(ColumnDefinition));
-    strcpy(source_schema->columns[0].name, "id");
-    source_schema->columns[0].type = TYPE_INT;
-    strcpy(source_schema->columns[1].name, "name");
-    source_schema->columns[1].type = TYPE_VARCHAR;
-    source_schema->columns[1].length = 255;
-    strcpy(source_schema->columns[2].name, "age");
-    source_schema->columns[2].type = TYPE_INT;
+    // Load source table schema using the shared function
+    TableSchema* source_schema = load_table_schema(table_name, base_dir);
+    if (!source_schema) {
+        result->error_message = strdup("Table not found");
+        return -1;
+    }
     
     // Generate kernel for query
     GeneratedKernel* kernel = generate_select_kernel(stmt, source_schema, base_dir);

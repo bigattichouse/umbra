@@ -6,11 +6,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>  // Added for va_start, va_end
+#include <stdarg.h>
 #include <sys/stat.h>
 #include <dirent.h>
 #include "query_executor.h"
 #include "select_executor.h"
+#include "create_table_executor.h"
 #include "../parser/lexer.h"
 #include "../parser/select_parser.h"
 #include "../parser/insert_parser.h"
@@ -21,8 +22,8 @@
 #include "../query/delete_executor.h"
 #include "../schema/metadata.h"
 #include "../schema/directory_manager.h"
-#include "../kernel/filter_generator.h"  // Added for validate_filter_expression
-#include "../kernel/projection_generator.h"  // Added for validate_select_list
+#include "../kernel/filter_generator.h"
+#include "../kernel/projection_generator.h"
 
 /**
  * @brief Create query result
@@ -55,260 +56,24 @@ static void set_query_error(QueryResult* result, const char* format, ...) {
 }
 
 /**
- * @brief Load table schema from schema header file
- */
-static TableSchema* load_schema_from_header(const char* table_name, const char* base_dir) {
-    // Build path to schema header file
-    char header_path[2048];
-    snprintf(header_path, sizeof(header_path), "%s/tables/%s/%s.h", 
-             base_dir, table_name, table_name);
-    
-    FILE* file = fopen(header_path, "r");
-    if (!file) {
-        return NULL;
-    }
-    
-    // Create schema structure
-    TableSchema* schema = malloc(sizeof(TableSchema));
-    strncpy(schema->name, table_name, sizeof(schema->name) - 1);
-    schema->name[sizeof(schema->name) - 1] = '\0';
-    schema->column_count = 0;
-    schema->columns = NULL;
-    schema->primary_key_columns = NULL;
-    schema->primary_key_column_count = 0;
-    
-    // Parse the header file to extract column definitions
-    char line[1024];
-    int capacity = 10;
-    schema->columns = malloc(capacity * sizeof(ColumnDefinition));
-    
-    // Look for struct definition and parse columns
-    bool in_struct = false;
-    
-    while (fgets(line, sizeof(line), file)) {
-        // Look for struct definition
-        if (strstr(line, "typedef struct {")) {
-            in_struct = true;
-            continue;
-        }
-        
-        // End of struct
-        if (in_struct && strstr(line, "} ")) {
-            break;
-        }
-        
-        // Parse column definition within struct
-        if (in_struct) {
-            // Skip comments and empty lines
-            char* trimmed = line;
-            while (*trimmed == ' ' || *trimmed == '\t') trimmed++;
-            if (*trimmed == '\n' || *trimmed == '/' || *trimmed == '*') {
-                continue;
-            }
-            
-            // Expand array if needed
-            if (schema->column_count >= capacity) {
-                capacity *= 2;
-                schema->columns = realloc(schema->columns, capacity * sizeof(ColumnDefinition));
-            }
-            
-            ColumnDefinition* col = &schema->columns[schema->column_count];
-            
-            // Parse type and name (simple parsing)
-            char type_str[64];
-            char name_str[64];
-            char array_size[32] = "";
-            
-            // Handle different patterns:
-            // int id;
-            // char name[256];
-            // double value;
-            // bool active;
-            if (sscanf(trimmed, "%s %[^[;]%[^;];", type_str, name_str, array_size) >= 2) {
-                strncpy(col->name, name_str, sizeof(col->name) - 1);
-                col->name[sizeof(col->name) - 1] = '\0';
-                
-                // Map C types to DataType
-                if (strcmp(type_str, "int") == 0) {
-                    col->type = TYPE_INT;
-                } else if (strcmp(type_str, "double") == 0 || strcmp(type_str, "float") == 0) {
-                    col->type = TYPE_FLOAT;
-                } else if (strcmp(type_str, "bool") == 0) {
-                    col->type = TYPE_BOOLEAN;
-                } else if (strcmp(type_str, "time_t") == 0) {
-                    col->type = TYPE_DATE;
-                } else if (strcmp(type_str, "char") == 0) {
-                    if (strlen(array_size) > 0) {
-                        col->type = TYPE_VARCHAR;
-                        // Extract array size
-                        int size = 0;
-                        if (sscanf(array_size, "[%d]", &size) == 1) {
-                            col->length = size - 1; // Account for null terminator
-                        } else {
-                            col->length = 255; // Default
-                        }
-                    } else {
-                        col->type = TYPE_VARCHAR;
-                        col->length = 1;
-                    }
-                } else {
-                    col->type = TYPE_UNKNOWN;
-                }
-                
-                // Set defaults
-                col->nullable = true;
-                col->has_default = false;
-                col->is_primary_key = false;
-                
-                // Check if it's likely a primary key (common pattern)
-                if (strcmp(col->name, "id") == 0 && col->type == TYPE_INT) {
-                    col->is_primary_key = true;
-                    col->nullable = false;
-                }
-                
-                schema->column_count++;
-            }
-        }
-    }
-    
-    fclose(file);
-    
-    // Build primary key information
-    int pk_count = 0;
-    for (int i = 0; i < schema->column_count; i++) {
-        if (schema->columns[i].is_primary_key) {
-            pk_count++;
-        }
-    }
-    
-    if (pk_count > 0) {
-        schema->primary_key_columns = malloc(pk_count * sizeof(int));
-        schema->primary_key_column_count = pk_count;
-        int pk_idx = 0;
-        for (int i = 0; i < schema->column_count; i++) {
-            if (schema->columns[i].is_primary_key) {
-                schema->primary_key_columns[pk_idx++] = i;
-            }
-        }
-    }
-    
-    return schema;
-}
-
-/**
- * @brief Load table schema from CREATE TABLE statement
- */
-static TableSchema* load_schema_from_create_statement(const char* table_name, const char* base_dir) {
-    // Try to find the CREATE TABLE statement in schema files
-    char schema_dir[2048];
-    snprintf(schema_dir, sizeof(schema_dir), "%s/tables/%s", base_dir, table_name);
-    
-    DIR* dir = opendir(schema_dir);
-    if (!dir) {
-        return NULL;
-    }
-    
-    struct dirent* entry;
-    while ((entry = readdir(dir)) != NULL) {
-        // Look for .sql files that might contain CREATE TABLE
-        if (strstr(entry->d_name, ".sql")) {
-            char sql_path[2560];
-            snprintf(sql_path, sizeof(sql_path), "%s/%s", schema_dir, entry->d_name);
-            
-            FILE* file = fopen(sql_path, "r");
-            if (file) {
-                // Read the entire file
-                fseek(file, 0, SEEK_END);
-                long size = ftell(file);
-                fseek(file, 0, SEEK_SET);
-                
-                char* content = malloc(size + 1);
-                fread(content, 1, size, file);
-                content[size] = '\0';
-                fclose(file);
-                
-                // Check if it contains CREATE TABLE for our table
-                char pattern[128];
-                snprintf(pattern, sizeof(pattern), "CREATE TABLE %s", table_name);
-                
-                if (strstr(content, pattern)) {
-                    // Parse the CREATE TABLE statement
-                    TableSchema* schema = parse_create_table(content);
-                    free(content);
-                    closedir(dir);
-                    return schema;
-                }
-                
-                free(content);
-            }
-        }
-    }
-    
-    closedir(dir);
-    return NULL;
-}
-
-/**
  * @brief Load table schema from metadata
  */
-static TableSchema* load_table_schema(const char* table_name, const char* base_dir) {
+TableSchema* load_table_schema(const char* table_name, const char* base_dir) {
     // First, check if the table directory exists
     if (!table_directory_exists(table_name, base_dir)) {
+        fprintf(stderr, "Table '%s' does not exist\n", table_name);
         return NULL;
     }
     
-    // Try to load from JSON metadata file first (most reliable)
+    // Try to load from JSON metadata file first
     TableSchema* schema = load_schema_metadata(table_name, base_dir);
     if (schema) {
         return schema;
     }
     
-    // Try to load from header file
-    schema = load_schema_from_header(table_name, base_dir);
-    if (schema) {
-        return schema;
-    }
-    
-    // Try to load from CREATE TABLE statement
-    schema = load_schema_from_create_statement(table_name, base_dir);
-    if (schema) {
-        return schema;
-    }
-    
-    
-    // As a last resort, create a default schema for testing
-    // This is temporary - in production, we'd fail here
-    schema = malloc(sizeof(TableSchema));
-    strncpy(schema->name, table_name, sizeof(schema->name) - 1);
-    schema->name[sizeof(schema->name) - 1] = '\0';
-    
-    // Create a simple default schema
-    schema->column_count = 3;
-    schema->columns = malloc(3 * sizeof(ColumnDefinition));
-    
-    // Column 1: id (INT)
-    strncpy(schema->columns[0].name, "id", sizeof(schema->columns[0].name) - 1);
-    schema->columns[0].type = TYPE_INT;
-    schema->columns[0].nullable = false;
-    schema->columns[0].is_primary_key = true;
-    
-    // Column 2: name (VARCHAR)
-    strncpy(schema->columns[1].name, "name", sizeof(schema->columns[1].name) - 1);
-    schema->columns[1].type = TYPE_VARCHAR;
-    schema->columns[1].length = 255;
-    schema->columns[1].nullable = true;
-    schema->columns[1].is_primary_key = false;
-    
-    // Column 3: age (INT)
-    strncpy(schema->columns[2].name, "age", sizeof(schema->columns[2].name) - 1);
-    schema->columns[2].type = TYPE_INT;
-    schema->columns[2].nullable = true;
-    schema->columns[2].is_primary_key = false;
-    
-    schema->primary_key_columns = NULL;
-    schema->primary_key_column_count = 0;
-    
-    return schema;
+    // If that fails, return NULL - don't use mock data
+    fprintf(stderr, "Failed to load schema metadata for table '%s'\n", table_name);
+    return NULL;
 }
 
 /**
@@ -328,6 +93,29 @@ static ASTNode* parse_query(const char* sql, const char* base_dir,
     void* parsed_stmt = NULL;
     ASTNodeType stmt_type;
     TableSchema* schema = NULL;  // Track schema to ensure proper cleanup
+    
+    if (strncasecmp(sql, "CREATE TABLE", 12) == 0) {
+        // For CREATE TABLE, we don't need the full parser yet
+        CreateTableResult* create_result = execute_create_table(sql, base_dir);
+        
+        if (!create_result->success) {
+            set_query_error(result, "CREATE TABLE failed: %s", create_result->error_message);
+            free_create_table_result(create_result);
+            parser_free(&parser);
+            lexer_free(&lexer);
+            return NULL;
+        }
+        
+        // Set success in query result
+        result->success = true;
+        result->row_count = 0;
+        result->error_message = strdup("Table created successfully");
+        
+        free_create_table_result(create_result);
+        parser_free(&parser);
+        lexer_free(&lexer);
+        return NULL;  // No AST node needed for CREATE TABLE
+    }
     
     if (parser.current_token.type == TOKEN_SELECT) {
         // Parse SELECT statement
@@ -556,6 +344,7 @@ QueryResult* execute_query(const char* sql, const char* base_dir) {
     // Parse query
     ASTNode* node = parse_query(sql, base_dir, result);
     if (!node) {
+        // For CREATE TABLE, result is already set
         return result;
     }
     

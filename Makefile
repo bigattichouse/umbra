@@ -51,7 +51,8 @@ QUERY_SRCS = $(SRC_DIR)/query/query_executor.c \
              $(SRC_DIR)/query/select_executor.c \
              $(SRC_DIR)/query/insert_executor.c \
              $(SRC_DIR)/query/update_executor.c \
-             $(SRC_DIR)/query/delete_executor.c
+             $(SRC_DIR)/query/delete_executor.c \
+             $(SRC_DIR)/query/create_table_executor.c
 
 CLI_SRCS = $(SRC_DIR)/cli/cli_main.c \
            $(SRC_DIR)/cli/interactive_mode.c \

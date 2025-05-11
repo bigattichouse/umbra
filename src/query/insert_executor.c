@@ -6,14 +6,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdarg.h>  // Add this for va_start, va_end
+#include <stdarg.h>
 #include <errno.h>
-#include <time.h>  // Add this for time() function
+#include <time.h>
 #include "insert_executor.h"
 #include "../schema/metadata.h"
 #include "../loader/page_manager.h"
 #include "../pages/page_generator.h"
 #include "../pages/page_splitter.h"
+#include "../query/query_executor.h"
+
 /**
  * @brief Create insert result
  */
@@ -73,37 +75,7 @@ static char* evaluate_literal(const Expression* expr) {
     return strdup(buffer);
 }
 
-/**
- * @brief Load table schema (temporary implementation)
- */
-static TableSchema* load_table_schema(const char* table_name, const char* base_dir) {
-    (void)base_dir;  // Suppress unused parameter warning
-    
-    // TODO: Actually load from metadata files
-    TableSchema* schema = malloc(sizeof(TableSchema));
-    strncpy(schema->name, table_name, sizeof(schema->name) - 1);
-    schema->name[sizeof(schema->name) - 1] = '\0';
-    
-    // Mock schema
-    schema->column_count = 3;
-    schema->columns = malloc(3 * sizeof(ColumnDefinition));
-    
-    strncpy(schema->columns[0].name, "id", sizeof(schema->columns[0].name) - 1);
-    schema->columns[0].type = TYPE_INT;
-    schema->columns[0].nullable = false;
-    schema->columns[0].is_primary_key = true;
-    
-    strncpy(schema->columns[1].name, "name", sizeof(schema->columns[1].name) - 1);
-    schema->columns[1].type = TYPE_VARCHAR;
-    schema->columns[1].length = 255;
-    schema->columns[1].nullable = true;
-    
-    strncpy(schema->columns[2].name, "age", sizeof(schema->columns[2].name) - 1);
-    schema->columns[2].type = TYPE_INT;
-    schema->columns[2].nullable = true;
-    
-    return schema;
-}
+// Remove the static load_table_schema function - we'll use the shared one
 
 /**
  * @brief Execute an INSERT statement
@@ -116,7 +88,7 @@ InsertResult* execute_insert(const InsertStatement* stmt, const char* base_dir) 
         return result;
     }
     
-    // Load table schema
+    // Load table schema using the shared function
     TableSchema* schema = load_table_schema(stmt->table_name, base_dir);
     if (!schema) {
         set_insert_error(result, "Table '%s' not found", stmt->table_name);

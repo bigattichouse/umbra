@@ -41,4 +41,12 @@ void free_query_result(QueryResult* result);
  */
 void print_query_result(const QueryResult* result);
 
+/**
+ * @brief Load table schema from metadata
+ * @param table_name Table name
+ * @param base_dir Base directory
+ * @return Schema or NULL on error
+ */
+TableSchema* load_table_schema(const char* table_name, const char* base_dir);
+
 #endif /* UMBRA_QUERY_EXECUTOR_H */
