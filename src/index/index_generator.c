@@ -56,10 +56,11 @@ int generate_index_header(const TableSchema* schema, const IndexDefinition* inde
         return -1;
     }
     
-    // Create header file path
+    // Create header file path - use consistent naming pattern
+    const char* type_str = (index_def->type == INDEX_TYPE_BTREE) ? "btree" : "hash";
     char header_path[2048];
-    snprintf(header_path, sizeof(header_path), "%s/%s.h", 
-             index_dir, index_def->index_name);
+    snprintf(header_path, sizeof(header_path), "%s/%s_%s_index_%s.h", 
+             index_dir, schema->name, type_str, index_def->column_name);
     
     fprintf(stderr, "Creating index header file: %s\n", header_path);
     
@@ -70,9 +71,11 @@ int generate_index_header(const TableSchema* schema, const IndexDefinition* inde
         return -1;
     }
     
-    // Write header guard
-    fprintf(file, "#ifndef UMBRA_INDEX_%s_H\n", index_def->index_name);
-    fprintf(file, "#define UMBRA_INDEX_%s_H\n\n", index_def->index_name);
+    // Write header guard - use consistent naming
+    fprintf(file, "#ifndef UMBRA_INDEX_%s_%s_%s_H\n", 
+            schema->name, type_str, index_def->column_name);
+    fprintf(file, "#define UMBRA_INDEX_%s_%s_%s_H\n\n", 
+            schema->name, type_str, index_def->column_name);
     
     // Write includes
     fprintf(file, "#include <stdbool.h>\n");
@@ -136,16 +139,14 @@ int generate_index_header(const TableSchema* schema, const IndexDefinition* inde
     fprintf(file, "int find_by_index(%s key, int* positions, int max_positions);\n\n", key_type);
     
     // Close header guard
-    fprintf(file, "#endif /* UMBRA_INDEX_%s_H */\n", index_def->index_name);
+    fprintf(file, "#endif /* UMBRA_INDEX_%s_%s_%s_H */\n", 
+            schema->name, type_str, index_def->column_name);
     
     fclose(file);
     fprintf(stderr, "Generated index header file: %s\n", header_path);
     return 0;
 }
 
-/**
- * @brief Generate source file for an index
- */
 /**
  * @brief Generate source file for an index
  */
@@ -273,16 +274,18 @@ int generate_index_source(const TableSchema* schema, const IndexDefinition* inde
             index_def->type, 
             index_def->column_name);
     
-    // Create the index source file - use correct index type
-    char src_path[4096]; // Increased buffer size
+    // Create the index source file - use correct index type and consistent naming pattern
     const char* type_str = (index_def->type == INDEX_TYPE_BTREE) ? "btree" : "hash";
+    char src_path[4096]; // Increased buffer size
     
+    // FIXED: Updated filename pattern to be consistent with compiler expectations
+    // New pattern: {schema_name}_{type}_index_{column}_{page}.c
     if (page_number >= 0) {
-        written = snprintf(src_path, sizeof(src_path), "%s/%s_%s_index_%d.c", 
-                src_dir, type_str, index_def->column_name, page_number);
+        written = snprintf(src_path, sizeof(src_path), "%s/%s_%s_index_%s_%d.c", 
+                src_dir, schema->name, type_str, index_def->column_name, page_number);
     } else {
-        written = snprintf(src_path, sizeof(src_path), "%s/%s_%s_index.c", 
-                src_dir, type_str, index_def->column_name);
+        written = snprintf(src_path, sizeof(src_path), "%s/%s_%s_index_%s.c", 
+                src_dir, schema->name, type_str, index_def->column_name);
     }
     
     if (written < 0 || written >= (int)sizeof(src_path)) {
@@ -360,6 +363,7 @@ int generate_index_source(const TableSchema* schema, const IndexDefinition* inde
     fprintf(stderr, "Generated index source file: %s\n", src_path);
     return 0;
 }
+
 /**
  * @brief Build index from a data page
  */
@@ -410,10 +414,10 @@ int generate_index_for_column(const TableSchema* schema, const char* column_name
     strncpy(index_def.column_name, column_name, sizeof(index_def.column_name) - 1);
     index_def.column_name[sizeof(index_def.column_name) - 1] = '\0';
     
-    // Create index name: {table}_{column}_{type}
+    // Create index name: {table}_{column}_{type} - follow same consistent pattern
+    const char* type_str = (index_type == INDEX_TYPE_BTREE) ? "btree" : "hash";
     snprintf(index_def.index_name, sizeof(index_def.index_name),
-             "%s_%s_%s", schema->name, column_name,
-             index_type == INDEX_TYPE_BTREE ? "btree" : "hash");
+             "%s_%s_index_%s", schema->name, type_str, column_name);
     
     index_def.type = index_type;
     index_def.unique = false;
