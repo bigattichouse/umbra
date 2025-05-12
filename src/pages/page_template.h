@@ -57,4 +57,51 @@
     "$CC $CFLAGS -o %s/compiled/%sData_%d.so %s/tables/%s/src/%sData_%d.c\n\n" \
     "echo \"Compiled %sData_%d.so\"\n"
 
+// In src/pages/page_template.h, update the ACCESSOR_SOURCE_TEMPLATE
+
+#define ACCESSOR_SOURCE_TEMPLATE \
+    "#include <stdlib.h>\n" \
+    "#include <string.h>\n" \
+    "#include \"../%s.h\"\n\n" \
+    "/* Data array containing records */\n" \
+    "static %s %sData_%d[] = {\n" \
+    "    /*BEGIN %s DATA*/\n" \
+    "#include \"../data/%sData.%d.dat.h\"\n" \
+    "    /*END %s DATA*/\n" \
+    "};\n\n" \
+    "/* Index structure for column %s */\n" \
+    "static BTreeIndex %sIndex_%d_%s = {\n" \
+    "    /*BEGIN %s INDEX*/\n" \
+    "#include \"../data/%sIndex.%d.%s.dat.h\"\n" \
+    "    /*END %s INDEX*/\n" \
+    "};\n\n" \
+    "/**\n" \
+    " * @brief Returns the number of records in the page\n" \
+    " * @return Number of records\n" \
+    " */\n" \
+    "int count(void) {\n" \
+    "    return sizeof(%sData_%d) / sizeof(%s);\n" \
+    "}\n\n" \
+    "/**\n" \
+    " * @brief Returns a record at the specified position\n" \
+    " * @param pos Position of the record\n" \
+    " * @return Pointer to the record or NULL if out of bounds\n" \
+    " */\n" \
+    "%s* read(int pos) {\n" \
+    "    if (pos < 0 || pos >= count()) {\n" \
+    "        return NULL;\n" \
+    "    }\n" \
+    "    return &%sData_%d[pos];\n" \
+    "}\n\n" \
+    "/**\n" \
+    " * @brief Find records by indexed field\n" \
+    " * @param key Key value to find\n" \
+    " * @param results Buffer to store result positions\n" \
+    " * @param max_results Maximum number of results to return\n" \
+    " * @return Number of matching records found\n" \
+    " */\n" \
+    "int find_by_%s(const void* key, int* results, int max_results) {\n" \
+    "    return search_index(&%sIndex_%d_%s, key, results, max_results);\n" \
+    "}\n"
+
 #endif /* UMBRA_PAGE_TEMPLATE_H */
