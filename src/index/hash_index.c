@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdint.h>  /* Add this for uintptr_t */
 #include "hash_index.h"
 #include "../schema/schema_parser.h"
 #include "../schema/type_system.h"
@@ -54,7 +55,8 @@ static unsigned int hash_key(const void* key, DataType key_type) {
         }
         default:
             // Unknown type, use pointer value as hash
-            hash = ((hash << 5) + hash) + (uintptr_t)key;
+            uintptr_t key_val = (uintptr_t)key;
+            hash = ((hash << 5) + hash) + key_val;
             break;
     }
     

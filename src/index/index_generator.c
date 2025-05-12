@@ -120,6 +120,7 @@ int generate_index_header(const TableSchema* schema, const IndexDefinition* inde
  */
 int generate_index_source(const TableSchema* schema, const IndexDefinition* index_def,
                          const char* base_dir, int page_number) {
+    (void)page_number;
     if (!schema || !index_def || !base_dir) {
         return -1;
     }
