@@ -23,8 +23,10 @@
  */
 static CreateIndexResult* create_result(void) {
     CreateIndexResult* result = malloc(sizeof(CreateIndexResult));
-    result->success = false;
-    result->error_message = NULL;
+    if (result) {
+        result->success = false;
+        result->error_message = NULL;
+    }
     return result;
 }
 
@@ -32,7 +34,17 @@ static CreateIndexResult* create_result(void) {
  * @brief Set error message in result
  */
 static void set_error(CreateIndexResult* result, const char* format, ...) {
+    if (!result) {
+        return;
+    }
+    
     result->success = false;
+    
+    // Free any existing error message
+    if (result->error_message) {
+        free(result->error_message);
+        result->error_message = NULL;
+    }
     
     va_list args;
     va_start(args, format);
@@ -231,30 +243,24 @@ int get_column_index(const TableSchema* schema, const char* column_name) {
  */
 int create_index(IndexManager* manager, const char* column_name, 
                 IndexType index_type, const char* base_dir) {
-    CreateIndexResult* result = create_result();
-    
     if (!manager || !column_name || !base_dir) {
-        set_error(result, "Invalid parameters");
         return -1;
     }
     
     // Check if column is already indexed
     if (is_column_indexed(manager, column_name)) {
-        set_error(result, "Column already indexed");
         return -1;
     }
     
     // Load table schema
     TableSchema* schema = load_table_schema(manager->table_name, base_dir);
     if (!schema) {
-        set_error(result, "Table not found: %s", manager->table_name);
         return -1;
     }
     
     // Check if column exists
     int col_idx = get_column_index(schema, column_name);
     if (col_idx < 0) {
-        set_error(result, "Column not found: %s", column_name);
         free_table_schema(schema);
         return -1;
     }
@@ -287,7 +293,6 @@ int create_index(IndexManager* manager, const char* column_name,
     
     // Generate index files and build index
     if (generate_index_for_column(schema, column_name, index_type, base_dir) != 0) {
-        set_error(result, "Failed to generate index");
         free_table_schema(schema);
         return -1;
     }
@@ -296,7 +301,6 @@ int create_index(IndexManager* manager, const char* column_name,
     IndexDefinition* new_indices = realloc(manager->indices, 
                                (manager->index_count + 1) * sizeof(IndexDefinition));
     if (!new_indices) {
-        set_error(result, "Memory allocation failed");
         free_table_schema(schema);
         return -1;
     }
@@ -307,13 +311,11 @@ int create_index(IndexManager* manager, const char* column_name,
     
     // Save index metadata
     if (save_index_metadata(manager, base_dir) != 0) {
-        set_error(result, "Failed to save index metadata");
-        free_table_schema(schema);
-        return -1;
+        // Don't rollback the in-memory changes, just log the error
+        fprintf(stderr, "Warning: Failed to save index metadata\n");
     }
     
     free_table_schema(schema);
-    result->success = true;
     return 0;
 }
 
@@ -322,6 +324,9 @@ int create_index(IndexManager* manager, const char* column_name,
  */
 CreateIndexResult* execute_create_index(const char* create_statement, const char* base_dir) {
     CreateIndexResult* result = create_result();
+    if (!result) {
+        return NULL;
+    }
     
     if (!create_statement || !base_dir) {
         set_error(result, "Invalid parameters");
@@ -339,9 +344,9 @@ CreateIndexResult* execute_create_index(const char* create_statement, const char
         return result;
     }
     
-    fprintf(stderr, "Creating index on table '%s', column '%s', type '%s'\n", 
-            table_name, column_name, 
-            index_type == INDEX_TYPE_BTREE ? "BTREE" : "HASH");
+    fprintf(stderr, "Creating %s index on table '%s', column '%s'\n", 
+            index_type == INDEX_TYPE_BTREE ? "BTREE" : "HASH", 
+            table_name, column_name);
     
     // Initialize index manager
     IndexManager manager;
@@ -406,6 +411,7 @@ void free_create_index_result(CreateIndexResult* result) {
         free(result);
     }
 }
+
 /**
  * @brief Parse a CREATE INDEX statement
  */

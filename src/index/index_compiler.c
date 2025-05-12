@@ -20,21 +20,33 @@ static bool file_exists(const char* path) {
 }
 
 /**
- * @brief Get index type from string
+ * @brief Get index type as string
  */
-static IndexType get_index_type_from_name(const char* index_name) {
-    if (!index_name) {
-        return INDEX_TYPE_BTREE; // Default
+static const char* get_index_type_string(IndexType index_type) {
+    switch (index_type) {
+        case INDEX_TYPE_BTREE:
+            return "btree";
+        case INDEX_TYPE_HASH:
+            return "hash";
+        default:
+            return "unknown";
     }
+}
+
+/**
+ * @brief Get path to index source file
+ */
+static int get_index_source_path(const TableSchema* schema, const char* column_name,
+                                const char* base_dir, int page_number,
+                                IndexType index_type,
+                                char* output, size_t output_size) {
+    const char* type_str = get_index_type_string(index_type);
     
-    if (strcasecmp(index_name, "btree") == 0) {
-        return INDEX_TYPE_BTREE;
-    } else if (strcasecmp(index_name, "hash") == 0) {
-        return INDEX_TYPE_HASH;
-    }
+    char src_dir[2048];
+    snprintf(src_dir, sizeof(src_dir), "%s/tables/%s/src", base_dir, schema->name);
     
-    // Default to B-tree
-    return INDEX_TYPE_BTREE;
+    return snprintf(output, output_size, "%s/%s_%s_index_%d.c", 
+                    src_dir, type_str, column_name, page_number);
 }
 
 /**
@@ -44,18 +56,7 @@ static int get_index_script_path(const TableSchema* schema, const char* column_n
                                 const char* base_dir, int page_number,
                                 IndexType index_type,
                                 char* output, size_t output_size) {
-    const char* type_str;
-    switch (index_type) {
-        case INDEX_TYPE_BTREE:
-            type_str = "btree";
-            break;
-        case INDEX_TYPE_HASH:
-            type_str = "hash";
-            break;
-        default:
-            type_str = "generic";
-            break;
-    }
+    const char* type_str = get_index_type_string(index_type);
     
     return snprintf(output, output_size, "%s/scripts/compile_index_%s_%s_%s_%d.sh",
                    base_dir, schema->name, type_str, column_name, page_number);
@@ -68,18 +69,7 @@ int get_index_so_path(const TableSchema* schema, const char* column_name,
                      const char* base_dir, int page_number,
                      IndexType index_type,
                      char* output, size_t output_size) {
-    const char* type_str;
-    switch (index_type) {
-        case INDEX_TYPE_BTREE:
-            type_str = "btree";
-            break;
-        case INDEX_TYPE_HASH:
-            type_str = "hash";
-            break;
-        default:
-            type_str = "generic";
-            break;
-    }
+    const char* type_str = get_index_type_string(index_type);
     
     return snprintf(output, output_size, "%s/compiled/%s_%s_index_%s_%d.so",
                    base_dir, schema->name, type_str, column_name, page_number);
@@ -132,27 +122,28 @@ int generate_index_compile_script(const TableSchema* schema, const IndexDefiniti
         }
     }  
     
-    // Get index type from name
-    IndexType index_type = get_index_type_from_name(index_def->index_name);
-    
     // Get type string
-    const char* type_str;
-    switch (index_type) {
-        case INDEX_TYPE_BTREE:
-            type_str = "btree";
-            break;
-        case INDEX_TYPE_HASH:
-            type_str = "hash";
-            break;
-        default:
-            type_str = "generic";
-            break;
+    const char* type_str = get_index_type_string(index_def->type);
+    
+    // Get source file path
+    char src_path[2048];
+    if (get_index_source_path(schema, index_def->column_name, base_dir, page_number, 
+                             index_def->type, src_path, sizeof(src_path)) < 0) {
+        fprintf(stderr, "Path too long for source file\n");
+        return -1;
+    }
+    
+    // Verify source file exists
+    if (!file_exists(src_path)) {
+        fprintf(stderr, "Source file not found: %s\n", src_path);
+        return -1;
     }
     
     // Create compilation script path
     char script_path[2048];
     if (get_index_script_path(schema, index_def->column_name, base_dir, page_number, 
-                              index_type, script_path, sizeof(script_path)) < 0) {
+                             index_def->type, script_path, sizeof(script_path)) < 0) {
+        fprintf(stderr, "Path too long for script file\n");
         return -1;
     }
     
@@ -160,6 +151,15 @@ int generate_index_compile_script(const TableSchema* schema, const IndexDefiniti
     FILE* script = fopen(script_path, "w");
     if (!script) {
         fprintf(stderr, "Failed to open script file for writing: %s\n", strerror(errno));
+        return -1;
+    }
+    
+    // Get output path
+    char out_path[2048];
+    if (get_index_so_path(schema, index_def->column_name, base_dir, page_number, 
+                         index_def->type, out_path, sizeof(out_path)) < 0) {
+        fprintf(stderr, "Path too long for output file\n");
+        fclose(script);
         return -1;
     }
     
@@ -172,12 +172,13 @@ int generate_index_compile_script(const TableSchema* schema, const IndexDefiniti
         "# Include paths\n"
         "INCLUDE_PATHS=\"-I%s -I%s/tables/%s\"\n\n"
         "# Source file\n"
-        "SRC=\"%s/tables/%s/src/%s_%s_index_%d.c\"\n\n"
+        "SRC=\"%s\"\n\n"
         "# Create compiled directory if it doesn't exist\n"
         "mkdir -p %s/compiled\n\n"
         "# Output file\n"
-        "OUT=\"%s/compiled/%s_%s_index_%s_%d.so\"\n\n"
+        "OUT=\"%s\"\n\n"
         "# Compile index\n"
+        "echo \"Compiling index: $SRC -> $OUT\"\n"
         "$CC $CFLAGS $INCLUDE_PATHS -o \"$OUT\" \"$SRC\"\n\n"
         "if [ $? -eq 0 ]; then\n"
         "    echo \"Successfully compiled index: $OUT\"\n"
@@ -187,9 +188,9 @@ int generate_index_compile_script(const TableSchema* schema, const IndexDefiniti
         "fi\n",
         type_str, schema->name, index_def->column_name, page_number,
         base_dir, base_dir, schema->name,
-        base_dir, schema->name, type_str, index_def->column_name, page_number,
+        src_path,
         base_dir,
-        base_dir, schema->name, type_str, index_def->column_name, page_number);
+        out_path);
     
     fclose(script);
     
@@ -211,23 +212,22 @@ int compile_index(const TableSchema* schema, const IndexDefinition* index_def,
         return -1;
     }
     
-    // Get index type from name
-    IndexType index_type = get_index_type_from_name(index_def->index_name);
-    
     // Check if already compiled
-    if (is_index_compiled(schema, index_def->column_name, base_dir, page_number, index_type)) {
+    if (is_index_compiled(schema, index_def->column_name, base_dir, page_number, index_def->type)) {
         return 0;
     }
     
     // Generate compilation script
     if (generate_index_compile_script(schema, index_def, base_dir, page_number) != 0) {
+        fprintf(stderr, "Failed to generate compilation script\n");
         return -1;
     }
     
     // Get script path
     char script_path[2048];
     if (get_index_script_path(schema, index_def->column_name, base_dir, page_number, 
-                             index_type, script_path, sizeof(script_path)) < 0) {
+                             index_def->type, script_path, sizeof(script_path)) < 0) {
+        fprintf(stderr, "Path too long for script file\n");
         return -1;
     }
     
