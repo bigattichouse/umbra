@@ -7,101 +7,106 @@
 #define UMBRA_BTREE_INDEX_H
 
 #include <stdbool.h>
-#include <time.h>
+#include <stddef.h>
 #include "../schema/type_system.h"
 
 /**
- * @brief Default order for B-tree (maximum number of children per node)
+ * @brief Order of the B-tree (max children per node)
  */
-#define BTREE_DEFAULT_ORDER 5
+#define BTREE_ORDER 5
 
 /**
- * @struct BTreeEntry
- * @brief Entry in a B-tree node
+ * @brief Key-value pair for building indexes
  */
 typedef struct {
-    void* key;            /**< Key pointer */
-    int position;         /**< Position in the data file */
-} BTreeEntry;
+    void* key;
+    int position;
+} KeyValuePair;
 
 /**
- * @struct BTreeNode
- * @brief Node in a B-tree
+ * @brief B-tree node
  */
 typedef struct BTreeNode {
-    int entry_count;              /**< Number of entries in this node */
-    BTreeEntry* entries;          /**< Array of entries */
-    struct BTreeNode** children;  /**< Array of child nodes */
-    bool is_leaf;                 /**< Whether this is a leaf node */
-    int order;                    /**< B-tree order (max children) */
+    bool is_leaf;
+    int key_count;              /* Number of keys in node */
+    DataType key_type;          /* Type of keys stored */
+    void* keys[BTREE_ORDER - 1]; /* Array of keys */
+    int positions[BTREE_ORDER - 1]; /* Positions of records */
+    struct BTreeNode* children[BTREE_ORDER]; /* Child nodes */
 } BTreeNode;
 
 /**
- * @struct BTreeIndex
  * @brief B-tree index
  */
 typedef struct {
-    char column_name[64];   /**< Column name this index is for */
-    BTreeNode* root;        /**< Root node of the B-tree */
-    int order;              /**< B-tree order (max children) */
-    int node_count;         /**< Number of nodes in the tree */
-    int entry_count;        /**< Number of entries in the index */
-    DataType key_type;      /**< Type of keys in this index */
+    char column_name[64];       /* Column name for the index */
+    DataType key_type;          /* Type of keys stored */
+    int height;                 /* Height of the tree */
+    BTreeNode* root;            /* Root node */
 } BTreeIndex;
 
 /**
  * @brief Initialize a B-tree index
- * @param index B-tree index to initialize
- * @param column_name Column name this index is for
- * @param key_type Type of keys in this index
- * @param order B-tree order (max children, 0 for default)
- * @return 0 on success, -1 on error
+ * @param column_name Name of the column being indexed
+ * @param key_type Type of keys to store
+ * @return Initialized B-tree index
  */
-int btree_init(BTreeIndex* index, const char* column_name, DataType key_type, int order);
+BTreeIndex* btree_init(const char* column_name, DataType key_type);
 
 /**
- * @brief Free resources used by a B-tree index
+ * @brief Free a B-tree index
  * @param index B-tree index to free
  */
 void btree_free(BTreeIndex* index);
 
 /**
- * @brief Insert a key-position pair into the B-tree index
- * @param index B-tree index to insert into
- * @param key Key pointer
- * @param position Position in the data file
+ * @brief Insert a key-position pair into the B-tree
+ * @param index B-tree index
+ * @param key Key to insert
+ * @param position Position of the record
  * @return 0 on success, -1 on error
  */
-int btree_insert(BTreeIndex* index, const void* key, int position);
+int btree_insert(BTreeIndex* index, void* key, int position);
 
 /**
- * @brief Find positions for a key in the B-tree index
- * @param index B-tree index to search
- * @param key Key to search for
- * @param positions Array to store found positions
+ * @brief Find positions of records with keys matching the search key
+ * @param index B-tree index
+ * @param key Search key
+ * @param positions Output array for positions
  * @param max_positions Maximum number of positions to return
- * @return Number of positions found
+ * @return Number of positions found, or -1 on error
  */
-int btree_find(const BTreeIndex* index, const void* key, int* positions, int max_positions);
+int btree_find_exact(const BTreeIndex* index, const void* key, 
+                     int* positions, int max_positions);
+
+/**
+ * @brief Find positions of records with keys in the given range
+ * @param index B-tree index
+ * @param low_key Lower bound key (NULL for no lower bound)
+ * @param high_key Upper bound key (NULL for no upper bound)
+ * @param positions Output array for positions
+ * @param max_positions Maximum number of positions to return
+ * @return Number of positions found, or -1 on error
+ */
+int btree_find_range(const BTreeIndex* index, const void* low_key, const void* high_key,
+                     int* positions, int max_positions);
 
 /**
  * @brief Generate C code for a B-tree index
- * @param index B-tree index to generate code for
- * @param output Buffer to store generated code
+ * @param index B-tree index
+ * @param output Output buffer for code
  * @param output_size Size of output buffer
- * @param function_name Name of generated lookup function
  * @return Number of bytes written, or -1 on error
  */
-int btree_generate_code(const BTreeIndex* index, char* output, size_t output_size, 
-                       const char* function_name);
+int btree_generate_code(const BTreeIndex* index, char* output, size_t output_size);
 
 /**
- * @brief Build a B-tree index from an array of key-value pairs
+ * @brief Build a B-tree index from key-value pairs
  * @param pairs Array of key-value pairs
  * @param pair_count Number of pairs
- * @param column_name Column name this index is for
- * @param key_type Type of keys in this index
- * @return New B-tree index, or NULL on error
+ * @param column_name Name of the column being indexed
+ * @param key_type Type of keys to store
+ * @return Initialized B-tree index, or NULL on error
  */
 BTreeIndex* btree_build_from_pairs(const KeyValuePair* pairs, int pair_count,
                                  const char* column_name, DataType key_type);
