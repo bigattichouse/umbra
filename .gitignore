@@ -8,6 +8,7 @@ build/
 # Test database directories
 test_db/
 test_database/
+test_index_db/
 umbra_db/
 
 # Compiled pages and kernels
