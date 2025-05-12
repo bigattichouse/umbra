@@ -105,7 +105,4 @@ int find_uuid_column_index(const TableSchema* schema);
  */
 char* get_uuid_from_record(void* record, const TableSchema* schema);
 
-
-
-
 #endif /* UMBRA_RECORD_ACCESS_H */

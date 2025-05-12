@@ -14,7 +14,7 @@
 #include "../schema/metadata.h"
 #include "../schema/type_system.h"
 #include "../loader/page_manager.h"
-#include "../loader/record_access.h"
+#include "../loader/record_access.h"  // Updated to use record_access functions
 #include "../kernel/kernel_generator.h"
 #include "../kernel/kernel_compiler.h"
 #include "../kernel/kernel_loader.h"
@@ -81,62 +81,6 @@ static GeneratedKernel* generate_delete_kernel(const DeleteStatement* stmt,
 }
 
 /**
- * @brief Find UUID column index in schema
- */
-static int find_uuid_column_index(const TableSchema* schema) {
-    // Look for the _uuid column
-    for (int i = 0; i < schema->column_count; i++) {
-        if (strcmp(schema->columns[i].name, "_uuid") == 0) {
-            return i;
-        }
-    }
-    
-    // If not found, return -1
-    return -1;
-}
-
-/**
- * @brief Get field size in bytes
- */
-static size_t get_field_size(DataType type, int length) {
-    switch (type) {
-        case TYPE_INT:
-            return sizeof(int);
-        case TYPE_FLOAT:
-            return sizeof(double);
-        case TYPE_BOOLEAN:
-            return sizeof(bool);
-        case TYPE_DATE:
-            return sizeof(time_t);
-        case TYPE_VARCHAR:
-        case TYPE_TEXT:
-            return length + 1; // Include null terminator
-        default:
-            return 0;
-    }
-}
-
-/**
- * @brief Get UUID string from record using schema
- */
-static char* get_uuid_from_record(void* record, const TableSchema* schema) {
-    int uuid_idx = find_uuid_column_index(schema);
-    if (uuid_idx < 0) {
-        return NULL;
-    }
-    
-    // Calculate the offset to the UUID field
-    size_t offset = 0;
-    for (int i = 0; i < uuid_idx; i++) {
-        offset += get_field_size(schema->columns[i].type, schema->columns[i].length);
-    }
-    
-    // The UUID is a varchar, so it's a char array
-    char* uuid_ptr = (char*)record + offset;
-    return strdup(uuid_ptr);
-}
-
-/**
  * @brief Physically delete records from a data file
  */
 static int delete_records_from_file(const char* data_path, const TableSchema* schema, 
@@ -146,6 +90,7 @@ static int delete_records_from_file(const char* data_path, const TableSchema* sc
     }
 
     // Extract UUIDs from matching records for easy comparison
+    // Using record_access.c function instead of local implementation
     char** match_uuids = malloc(match_count * sizeof(char*));
     for (int i = 0; i < match_count; i++) {
         match_uuids[i] = get_uuid_from_record(matches[i], schema);
@@ -411,15 +356,15 @@ DeleteResult* execute_delete(const DeleteStatement* stmt, const char* base_dir) 
             // Track matched records
             int match_count = 0;
             
-            // Load page data
-            void* data_ptr;
-            if (read_record(&page, 0, &data_ptr) != 0) {
+            // Get pointer to first record - using record_access.c function
+            void* first_record;
+            if (read_record(&page, 0, &first_record) != 0) {
                 free(matches);
                 unload_page(&page);
                 continue;
             }
             
-            // Get the first record to determine its size
+            // Get the record size from schema
             size_t struct_size = calculate_record_size((const struct TableSchema*)schema);
             
             // Allocate space for kernel results
@@ -432,7 +377,7 @@ DeleteResult* execute_delete(const DeleteStatement* stmt, const char* base_dir) 
             
             // Execute kernel to find matching records
             int kernel_result_count = execute_kernel(
-                &loaded_kernel, data_ptr, page_records, kernel_results, page_records);
+                &loaded_kernel, first_record, page_records, kernel_results, page_records);
             
             #ifdef DEBUG
             fprintf(stderr, "[DEBUG] Kernel found %d matching records in page %d\n", 
