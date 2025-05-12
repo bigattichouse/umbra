@@ -54,8 +54,7 @@ int generate_compilation_script(const TableSchema* schema, const char* base_dir,
     fprintf(script_file, COMPILE_SCRIPT_TEMPLATE,
             page_number, schema->name,
             base_dir,
-            base_dir, schema->name, page_number, base_dir, schema->name, schema->name, page_number,
-            schema->name, page_number);
+            base_dir, schema->name, page_number, base_dir, schema->name, schema->name, page_number);
     
     // Close file
     fclose(script_file);
@@ -134,12 +133,11 @@ int generate_filtered_compilation_script(const TableSchema* schema, const char* 
         "# Create compiled directory if it doesn't exist\n"
         "mkdir -p %s/compiled\n\n"
         "# Compile the data page\n"
-        "$CC $CFLAGS -o %s/compiled/%sData_%d_%s.so %s/tables/%s/src/%sData_%d_%s.c\n\n"
-        "echo \"Compiled %sData_%d_%s.so\"\n",
+        "$CC $CFLAGS -o %s/compiled/%sData_%d_%s.so %s/tables/%s/src/%sData_%d_%s.c\n\n",
         suffix, page_number, schema->name,
         base_dir,
-        base_dir, schema->name, page_number, suffix, base_dir, schema->name, schema->name, page_number, suffix,
-        schema->name, page_number, suffix);
+        base_dir, schema->name, page_number, suffix, base_dir, schema->name, schema->name, page_number, suffix
+        );
     
     // Close file
     fclose(script_file);

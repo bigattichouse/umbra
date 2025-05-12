@@ -2,7 +2,8 @@
 
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -g3 -O0 -I. -DDEBUG -fsanitize=address -fno-omit-frame-pointer
+CFLAGS = -Wall -Wextra -g3 -O0 -I. -fsanitize=address -fno-omit-frame-pointer 
+#-DDEBUG 
 LDFLAGS = -ldl -lreadline -luuid -fsanitize=address
 AR = ar
 ARFLAGS = rcs

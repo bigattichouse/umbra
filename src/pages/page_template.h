@@ -54,7 +54,6 @@
     "# Create compiled directory if it doesn't exist\n" \
     "mkdir -p %s/compiled\n\n" \
     "# Compile the data page\n" \
-    "$CC $CFLAGS -o %s/compiled/%sData_%d.so %s/tables/%s/src/%sData_%d.c\n\n" \
-    "echo \"Compiled %sData_%d.so\"\n"
+    "$CC $CFLAGS -o %s/compiled/%sData_%d.so %s/tables/%s/src/%sData_%d.c\n\n" 
 
 #endif /* UMBRA_PAGE_TEMPLATE_H */
