@@ -24,6 +24,7 @@
 #include "../schema/directory_manager.h"
 #include "../kernel/filter_generator.h"
 #include "../kernel/projection_generator.h"
+#include "../index/index_manager.h"  // For execute_create_index and free_create_index_result
 
 /**
  * @brief Create query result
@@ -115,7 +116,28 @@ static ASTNode* parse_query(const char* sql, const char* base_dir,
         parser_free(&parser);
         lexer_free(&lexer);
         return NULL;  // No AST node needed for CREATE TABLE
+    } else if (strncasecmp(sql, "CREATE INDEX", 12) == 0) {
+    // Handle CREATE INDEX statement
+    CreateIndexResult* index_result = execute_create_index(sql, base_dir);
+    
+    if (!index_result->success) {
+        set_query_error(result, "CREATE INDEX failed: %s", index_result->error_message);
+        free_create_index_result(index_result);
+        parser_free(&parser);
+        lexer_free(&lexer);
+        return NULL;
     }
+    
+    // Set success in query result
+    result->success = true;
+    result->row_count = 0;
+    result->error_message = strdup("Index created successfully");
+    
+    free_create_index_result(index_result);
+    parser_free(&parser);
+    lexer_free(&lexer);
+    return NULL;  // No AST node needed for CREATE INDEX
+}
     
     if (parser.current_token.type == TOKEN_SELECT) {
         // Parse SELECT statement
