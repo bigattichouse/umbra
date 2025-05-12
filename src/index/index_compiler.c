@@ -20,13 +20,45 @@ static bool file_exists(const char* path) {
 }
 
 /**
+ * @brief Get index type from string
+ */
+static IndexType get_index_type_from_name(const char* index_name) {
+    if (!index_name) {
+        return INDEX_TYPE_BTREE; // Default
+    }
+    
+    if (strcasecmp(index_name, "btree") == 0) {
+        return INDEX_TYPE_BTREE;
+    } else if (strcasecmp(index_name, "hash") == 0) {
+        return INDEX_TYPE_HASH;
+    }
+    
+    // Default to B-tree
+    return INDEX_TYPE_BTREE;
+}
+
+/**
  * @brief Get path to index compilation script
  */
 static int get_index_script_path(const TableSchema* schema, const char* column_name,
                                 const char* base_dir, int page_number,
+                                IndexType index_type,
                                 char* output, size_t output_size) {
-    return snprintf(output, output_size, "%s/scripts/compile_index_%s_%s_%d.sh",
-                   base_dir, schema->name, column_name, page_number);
+    const char* type_str;
+    switch (index_type) {
+        case INDEX_TYPE_BTREE:
+            type_str = "btree";
+            break;
+        case INDEX_TYPE_HASH:
+            type_str = "hash";
+            break;
+        default:
+            type_str = "generic";
+            break;
+    }
+    
+    return snprintf(output, output_size, "%s/scripts/compile_index_%s_%s_%s_%d.sh",
+                   base_dir, schema->name, type_str, column_name, page_number);
 }
 
 /**
@@ -36,17 +68,16 @@ int get_index_so_path(const TableSchema* schema, const char* column_name,
                      const char* base_dir, int page_number,
                      IndexType index_type,
                      char* output, size_t output_size) {
-    // Add index type to the path
     const char* type_str;
     switch (index_type) {
-        case INDEX_BTREE:
+        case INDEX_TYPE_BTREE:
             type_str = "btree";
             break;
-        case INDEX_HASH:
+        case INDEX_TYPE_HASH:
             type_str = "hash";
             break;
         default:
-            type_str = "unknown";
+            type_str = "generic";
             break;
     }
     
@@ -58,10 +89,11 @@ int get_index_so_path(const TableSchema* schema, const char* column_name,
  * @brief Check if index is already compiled
  */
 bool is_index_compiled(const TableSchema* schema, const char* column_name,
-                      const char* base_dir, int page_number) {
+                      const char* base_dir, int page_number,
+                      IndexType index_type) {
     char path[2048];
     
-    if (get_index_so_path(schema, column_name, base_dir, page_number, path, sizeof(path)) < 0) {
+    if (get_index_so_path(schema, column_name, base_dir, page_number, index_type, path, sizeof(path)) < 0) {
         return false;
     }
     
@@ -89,10 +121,27 @@ int generate_index_compile_script(const TableSchema* schema, const IndexDefiniti
         }
     }
     
+    // Get index type from name
+    IndexType index_type = get_index_type_from_name(index_def->index_name);
+    
+    // Get type string
+    const char* type_str;
+    switch (index_type) {
+        case INDEX_TYPE_BTREE:
+            type_str = "btree";
+            break;
+        case INDEX_TYPE_HASH:
+            type_str = "hash";
+            break;
+        default:
+            type_str = "generic";
+            break;
+    }
+    
     // Create compilation script path
     char script_path[2048];
-    if (get_index_script_path(schema, index_def->column_name, base_dir, page_number,
-                             script_path, sizeof(script_path)) < 0) {
+    if (get_index_script_path(schema, index_def->column_name, base_dir, page_number, 
+                              index_type, script_path, sizeof(script_path)) < 0) {
         return -1;
     }
     
@@ -106,17 +155,17 @@ int generate_index_compile_script(const TableSchema* schema, const IndexDefiniti
     // Write script
     fprintf(script,
         "#!/bin/bash\n\n"
-        "# Compile index for %s.%s (page %d)\n\n"
+        "# Compile %s index for %s.%s (page %d)\n\n"
         "CC=${CC:-gcc}\n"
         "CFLAGS=\"-fPIC -shared -O2 -g\"\n\n"
         "# Include paths\n"
         "INCLUDE_PATHS=\"-I%s -I%s/tables/%s\"\n\n"
         "# Source file\n"
-        "SRC=\"%s/tables/%s/src/%s_index_%d.c\"\n\n"
+        "SRC=\"%s/tables/%s/src/%s_%s_index_%d.c\"\n\n"
         "# Create compiled directory if it doesn't exist\n"
         "mkdir -p %s/compiled\n\n"
         "# Output file\n"
-        "OUT=\"%s/compiled/%s_index_%s_%d.so\"\n\n"
+        "OUT=\"%s/compiled/%s_%s_index_%s_%d.so\"\n\n"
         "# Compile index\n"
         "$CC $CFLAGS $INCLUDE_PATHS -o \"$OUT\" \"$SRC\"\n\n"
         "if [ $? -eq 0 ]; then\n"
@@ -125,11 +174,11 @@ int generate_index_compile_script(const TableSchema* schema, const IndexDefiniti
         "    echo \"Failed to compile index\"\n"
         "    exit 1\n"
         "fi\n",
-        schema->name, index_def->column_name, page_number,
+        type_str, schema->name, index_def->column_name, page_number,
         base_dir, base_dir, schema->name,
-        base_dir, schema->name, index_def->column_name, page_number,
+        base_dir, schema->name, type_str, index_def->column_name, page_number,
         base_dir,
-        base_dir, schema->name, index_def->column_name, page_number);
+        base_dir, schema->name, type_str, index_def->column_name, page_number);
     
     fclose(script);
     
@@ -151,8 +200,11 @@ int compile_index(const TableSchema* schema, const IndexDefinition* index_def,
         return -1;
     }
     
+    // Get index type from name
+    IndexType index_type = get_index_type_from_name(index_def->index_name);
+    
     // Check if already compiled
-    if (is_index_compiled(schema, index_def->column_name, base_dir, page_number)) {
+    if (is_index_compiled(schema, index_def->column_name, base_dir, page_number, index_type)) {
         return 0;
     }
     
@@ -163,8 +215,8 @@ int compile_index(const TableSchema* schema, const IndexDefinition* index_def,
     
     // Get script path
     char script_path[2048];
-    if (get_index_script_path(schema, index_def->column_name, base_dir, page_number,
-                             script_path, sizeof(script_path)) < 0) {
+    if (get_index_script_path(schema, index_def->column_name, base_dir, page_number, 
+                             index_type, script_path, sizeof(script_path)) < 0) {
         return -1;
     }
     

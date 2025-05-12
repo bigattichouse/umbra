@@ -524,20 +524,6 @@ int btree_generate_code(const BTreeIndex* index, char* output, size_t output_siz
     return written;
 }
 
-/**
- * @brief Compare function for sorting key-value pairs
- */
-static int compare_pairs(const void* a, const void* b) {
-    const KeyValuePair* pair_a = (const KeyValuePair*)a;
-    const KeyValuePair* pair_b = (const KeyValuePair*)b;
-    
-    // If positions are equal, return 0
-    if (pair_a->position == pair_b->position) {
-        return 0;
-    }
-    
-    return compare_keys(pair_a->key, pair_b->key, TYPE_INT); // Simplified
-}
 
 /**
  * @brief Build a B-tree index from key-value pairs
