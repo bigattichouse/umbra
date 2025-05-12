@@ -123,4 +123,12 @@ int parse_create_index(const char* sql, char* table_name, size_t table_name_size
  */
 CreateIndexResult* execute_create_index(const char* create_statement, const char* base_dir);
 
+/**
+ * @brief Get column index in the schema
+ * @param schema Table schema
+ * @param column_name Column name
+ * @return Column index or -1 if not found
+ */
+int get_column_index(const TableSchema* schema, const char* column_name);
+
 #endif /* UMBRA_INDEX_MANAGER_H */

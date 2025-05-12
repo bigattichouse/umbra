@@ -10,6 +10,7 @@
 #include <errno.h>
 #include "index_generator.h"
 #include "index_compiler.h"
+#include "index_manager.h"
 #include "../schema/directory_manager.h"
 
 /**
@@ -462,21 +463,4 @@ int generate_index_for_column(const TableSchema* schema, const char* column_name
     
     fprintf(stderr, "Successfully generated index for column %s\n", column_name);
     return 0;
-}
-
-/**
- * @brief Get column index in schema
- */
-int get_column_index(const TableSchema* schema, const char* column_name) {
-    if (!schema || !column_name) {
-        return -1;
-    }
-    
-    for (int i = 0; i < schema->column_count; i++) {
-        if (strcasecmp(schema->columns[i].name, column_name) == 0) {
-            return i;
-        }
-    }
-    
-    return -1;
 }
