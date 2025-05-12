@@ -37,12 +37,14 @@ int generate_index_compile_script(const TableSchema* schema, const IndexDefiniti
  * @param column_name Column name
  * @param base_dir Base directory
  * @param page_number Page number (-1 for all pages)
+ * @param index_type Index type
  * @param output Output buffer for path
  * @param output_size Size of output buffer
  * @return 0 on success, -1 on error
  */
 int get_index_so_path(const TableSchema* schema, const char* column_name,
                      const char* base_dir, int page_number,
+                     IndexType index_type,
                      char* output, size_t output_size);
 
 #endif /* UMBRA_INDEX_COMPILER_H */

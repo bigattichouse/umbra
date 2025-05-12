@@ -42,7 +42,18 @@ int build_index_from_page(const TableSchema* schema, const IndexDefinition* inde
                          const char* base_dir, int page_number);
 
 /**
- * @brief Get index for a column in the schema
+ * @brief Generate index for a column
+ * @param schema Table schema
+ * @param column_name Column name
+ * @param index_type Index type
+ * @param base_dir Base directory
+ * @return 0 on success, -1 on error
+ */
+int generate_index_for_column(const TableSchema* schema, const char* column_name,
+                            IndexType index_type, const char* base_dir);
+
+/**
+ * @brief Get column index in the schema
  * @param schema Table schema
  * @param column_name Column name
  * @return Column index or -1 if not found

@@ -15,9 +15,9 @@
  * @brief Manages indices for a table
  */
 typedef struct {
-    char table_name[64];     /**< Table name */
+    char table_name[64];      /**< Table name */
     IndexDefinition* indices; /**< Array of indices */
-    int index_count;         /**< Number of indices */
+    int index_count;          /**< Number of indices */
 } IndexManager;
 
 /**
@@ -114,5 +114,13 @@ void* load_index(const TableSchema* schema, const char* column_name,
  */
 int parse_create_index(const char* sql, char* table_name, size_t table_name_size,
                       char* column_name, size_t column_name_size, IndexType* index_type);
+
+/**
+ * @brief Execute a CREATE INDEX statement
+ * @param create_statement CREATE INDEX SQL statement
+ * @param base_dir Base directory for database
+ * @return Result of operation (must be freed with free_create_index_result)
+ */
+CreateIndexResult* execute_create_index(const char* create_statement, const char* base_dir);
 
 #endif /* UMBRA_INDEX_MANAGER_H */
