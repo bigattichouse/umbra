@@ -345,6 +345,7 @@ CreateIndexResult* execute_create_index(const char* create_statement, const char
     IndexManager manager;
     if (init_index_manager(&manager, table_name) != 0) {
         set_error(result, "Failed to initialize index manager");
+        free_index_manager(&manager);
         return result;
     }
     
@@ -375,6 +376,7 @@ CreateIndexResult* execute_create_index(const char* create_statement, const char
 void free_create_index_result(CreateIndexResult* result) {
     if (result) {
         free(result->error_message);
+        result->error_message = NULL;
         free(result);
     }
 }
@@ -391,34 +393,33 @@ int parse_create_index(const char* sql, char* table_name, size_t table_name_size
     // Default to BTREE index
     *index_type = INDEX_TYPE_BTREE;
     
-    // Parse SQL string (very simplified for demonstration)
-    char sql_copy[1024];
-    strncpy(sql_copy, sql, sizeof(sql_copy) - 1);
-    sql_copy[sizeof(sql_copy) - 1] = '\0';
+    // Create an uppercase copy for keyword matching
+    char sql_upper[1024];
+    strncpy(sql_upper, sql, sizeof(sql_upper) - 1);
+    sql_upper[sizeof(sql_upper) - 1] = '\0';
     
-    // Convert to uppercase for easier parsing
-    for (int i = 0; sql_copy[i]; i++) {
-        sql_copy[i] = toupper(sql_copy[i]);
+    for (int i = 0; sql_upper[i]; i++) {
+        sql_upper[i] = toupper(sql_upper[i]);
     }
     
     // Check if it starts with CREATE INDEX
-    if (strncmp(sql_copy, "CREATE INDEX", 12) != 0) {
+    if (strncmp(sql_upper, "CREATE INDEX", 12) != 0) {
         return -1;
     }
     
-    // Find ON keyword
-    char* on_ptr = strstr(sql_copy, " ON ");
-    if (!on_ptr) {
+    // Find ON keyword in uppercase string
+    char* on_ptr_upper = strstr(sql_upper, " ON ");
+    if (!on_ptr_upper) {
         return -1;
     }
     
     // Find USING keyword
-    char* using_ptr = strstr(sql_copy, " USING ");
-    if (using_ptr) {
+    char* using_ptr_upper = strstr(sql_upper, " USING ");
+    if (using_ptr_upper) {
         // Check index type
-        if (strstr(using_ptr, " BTREE") || strstr(using_ptr, "(BTREE)")) {
+        if (strstr(using_ptr_upper, " BTREE") || strstr(using_ptr_upper, "(BTREE)")) {
             *index_type = INDEX_TYPE_BTREE;
-        } else if (strstr(using_ptr, " HASH") || strstr(using_ptr, "(HASH)")) {
+        } else if (strstr(using_ptr_upper, " HASH") || strstr(using_ptr_upper, "(HASH)")) {
             *index_type = INDEX_TYPE_HASH;
         } else {
             // Unknown index type
@@ -426,38 +427,68 @@ int parse_create_index(const char* sql, char* table_name, size_t table_name_size
         }
     }
     
-    // Parse table name
-    char* table_start = on_ptr + 4; // Skip " ON "
-    char* table_end = strstr(table_start, " (");
-    if (!table_end) {
+    // Find positions in uppercase string
+    char* table_start_upper = on_ptr_upper + 4; // Skip " ON "
+    char* table_end_upper = strstr(table_start_upper, " (");
+    if (!table_end_upper) {
         return -1;
     }
+    
+    // Calculate offsets in original string
+    size_t table_start_offset = table_start_upper - sql_upper;
+    size_t table_end_offset = table_end_upper - sql_upper;
+    
+    const char* table_start = sql + table_start_offset;
+    const char* table_end = sql + table_end_offset;
     
     int table_len = table_end - table_start;
     if (table_len <= 0 || (size_t)table_len >= table_name_size) {
         return -1;
     }
     
+    // Copy table name from the original SQL, preserving case
     strncpy(table_name, table_start, table_len);
     table_name[table_len] = '\0';
     
-    // Parse column name
-    char* column_start = table_end + 2; // Skip " ("
-    char* column_end = strstr(column_start, ")");
-    if (!column_end) {
+    // Find column positions in uppercase string
+    char* column_start_upper = table_end_upper + 2; // Skip " ("
+    char* column_end_upper = strstr(column_start_upper, ")");
+    if (!column_end_upper) {
         return -1;
     }
+    
+    // Calculate offsets in original string
+    size_t column_start_offset = column_start_upper - sql_upper;
+    size_t column_end_offset = column_end_upper - sql_upper;
+    
+    const char* column_start = sql + column_start_offset;
+    const char* column_end = sql + column_end_offset;
     
     int column_len = column_end - column_start;
     if (column_len <= 0 || (size_t)column_len >= column_name_size) {
         return -1;
     }
     
+    // Copy column name from the original SQL, preserving case
     strncpy(column_name, column_start, column_len);
     column_name[column_len] = '\0';
     
-    // Remove leading/trailing whitespace and quotes from table and column names
-    // [Code to clean up names omitted for brevity]
+    // Trim leading and trailing whitespace from table and column names
+    // Trim table name
+    while (*table_name == ' ' && *table_name) {
+        memmove(table_name, table_name + 1, strlen(table_name));
+    }
+    for (int i = strlen(table_name) - 1; i >= 0 && table_name[i] == ' '; i--) {
+        table_name[i] = '\0';
+    }
+    
+    // Trim column name
+    while (*column_name == ' ' && *column_name) {
+        memmove(column_name, column_name + 1, strlen(column_name));
+    }
+    for (int i = strlen(column_name) - 1; i >= 0 && column_name[i] == ' '; i--) {
+        column_name[i] = '\0';
+    }
     
     return 0;
 }
