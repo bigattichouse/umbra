@@ -6,14 +6,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <dirent.h>  /* For DIR, opendir, readdir, closedir */
+#include <dirent.h>  /* Add this for DIR, opendir, readdir, closedir */
 #include "table_scan.h"
 #include "../kernel/filter_generator.h"
 #include "../kernel/projection_generator.h"
 #include "../kernel/kernel_generator.h"
 #include "../kernel/kernel_compiler.h"
 #include "../kernel/kernel_loader.h"
-#include "../query/query_executor.h"  /* For load_table_schema declaration */
+#include "../query/query_executor.h"  /* Add this for load_table_schema */
 
 /**
  * @brief Initialize a table scan
@@ -152,11 +152,12 @@ int next_matching_record(TableScan* scan) {
     
     // Get current record if we don't have one
     if (!scan->current_record) {
-        // This should use get_current_record from record_access.h, which takes a TableCursor
-        if (get_current_record(&scan->cursor, &scan->current_record) != 0) {
+        void* record;
+        if (get_current_record(&scan->cursor, &record) != 0) {
             scan->at_end = true;
             return 1;
         }
+        scan->current_record = record;
     }
     
     do {
@@ -174,19 +175,23 @@ int next_matching_record(TableScan* scan) {
             return result;
         }
         
-        // Get the new current record - again using the cursor version
-        if (get_current_record(&scan->cursor, &scan->current_record) != 0) {
+        // Get the new current record
+        void* record;
+        if (get_current_record(&scan->cursor, &record) != 0) {
             scan->at_end = true;
             return 1;
         }
+        scan->current_record = record;
     } while (!scan->at_end);
     
     return 1;
 }
+
 /**
- * @brief Get the current record from the scanner
+ * @brief Get the current record from a table scan
+ * Renamed to avoid conflict with function in record_access.h
  */
-int get_scan_record(const TableScan* scan, void** record) {
+int get_scan_current_record(const TableScan* scan, void** record) {
     if (!scan || !scan->initialized || !record) {
         return -1;
     }
