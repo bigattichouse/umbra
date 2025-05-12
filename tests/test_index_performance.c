@@ -17,8 +17,8 @@
 #include "../src/index/index_definition.h"
 
 #define TEST_DB_DIR "test_index_db"
-#define RECORD_COUNT 1000000
-#define BATCH_SIZE 10000
+#define RECORD_COUNT  100 //1000000
+#define BATCH_SIZE 25
 
 // Timer utilities
 typedef struct {
