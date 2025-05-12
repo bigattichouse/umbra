@@ -17,9 +17,7 @@
  */
 #define ACCESSOR_SOURCE_TEMPLATE \
     "#include <stdlib.h>\n" \
-    "#include <string.h>\n" \
-    "#include \"../%s.h\"\n" \
-    "#include \"../../../src/index/index_types.h\"\n\n" \
+    "#include \"../%s.h\"\n\n" \
     "/* Data array containing records */\n" \
     "static %s %sData_%d[] = {\n" \
     "    /*BEGIN %s DATA*/\n" \
@@ -43,21 +41,6 @@
     "        return NULL;\n" \
     "    }\n" \
     "    return &%sData_%d[pos];\n" \
-    "}\n"
-
-/**
- * @brief Template for indexed accessor functions
- */
-#define INDEXED_ACCESSOR_TEMPLATE \
-    "\n/**\n" \
-    " * @brief Search index by column\n" \
-    " * @param key Key to search for\n" \
-    " * @param results Array to store record positions\n" \
-    " * @param max_results Maximum number of results to return\n" \
-    " * @return Number of matching records found\n" \
-    " */\n" \
-    "int find_by_%s(const void* key, int* results, int max_results) {\n" \
-    "    return search_index(&%sIndex_%d_%s, key, results, max_results);\n" \
     "}\n"
 
 /**
