@@ -34,9 +34,24 @@ static int get_index_script_path(const TableSchema* schema, const char* column_n
  */
 int get_index_so_path(const TableSchema* schema, const char* column_name,
                      const char* base_dir, int page_number,
+                     IndexType index_type,
                      char* output, size_t output_size) {
-    return snprintf(output, output_size, "%s/compiled/%s_index_%s_%d.so",
-                   base_dir, schema->name, column_name, page_number);
+    // Add index type to the path
+    const char* type_str;
+    switch (index_type) {
+        case INDEX_BTREE:
+            type_str = "btree";
+            break;
+        case INDEX_HASH:
+            type_str = "hash";
+            break;
+        default:
+            type_str = "unknown";
+            break;
+    }
+    
+    return snprintf(output, output_size, "%s/compiled/%s_%s_index_%s_%d.so",
+                   base_dir, schema->name, type_str, column_name, page_number);
 }
 
 /**
