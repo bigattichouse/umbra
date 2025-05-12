@@ -89,9 +89,25 @@ static int delete_records_from_file(const char* data_path, const TableSchema* sc
         return 0;  // Nothing to delete
     }
 
+    // Extract UUIDs from matching records for easy comparison
+    // Using record_access.c function instead of local implementation
+    char** match_uuids = malloc(match_count * sizeof(char*));
+    for (int i = 0; i < match_count; i++) {
+        match_uuids[i] = get_uuid_from_record(matches[i], schema);
+        #ifdef DEBUG
+        fprintf(stderr, "[DEBUG] Matching UUID %d: %s\n", i, match_uuids[i] ? match_uuids[i] : "NULL");
+        #endif
+    }
+    
     // Open the file for reading
     FILE* read_file = fopen(data_path, "r");
     if (!read_file) {
+        // Clean up UUIDs
+        for (int i = 0; i < match_count; i++) {
+            free(match_uuids[i]);
+        }
+        free(match_uuids);
+        
         fprintf(stderr, "Failed to open data file for reading: %s\n", data_path);
         return -1;
     }
@@ -130,30 +146,36 @@ static int delete_records_from_file(const char* data_path, const TableSchema* sc
         }
     }
 
-    // For test case in test_delete we're looking for id = 4
+    // Mark records for deletion by scanning for UUIDs in the file content
     int marked_for_deletion = 0;
-    for (int i = 0; i < record_count && marked_for_deletion < match_count; i++) {
-        int line_idx = record_lines[i].line_index;
-        
-        // Check if this line contains id = 4
-        if (strstr(lines[line_idx], "id = 4")) {
-            record_lines[i].should_delete = true;
-            marked_for_deletion++;
-            #ifdef DEBUG
-            fprintf(stderr, "[DEBUG] Marked record at line %d for deletion (contains id = 4)\n", 
-                    line_idx);
-            #endif
-        }
-    }
     
-    // If no specific matches found, just delete the first match_count records
-    if (marked_for_deletion == 0) {
-        for (int i = 0; i < record_count && i < match_count; i++) {
-            record_lines[i].should_delete = true;
-            marked_for_deletion++;
+    for (int i = 0; i < match_count; i++) {
+        if (!match_uuids[i]) continue;
+        
+        // Look for this UUID in each record line
+        for (int j = 0; j < record_count; j++) {
+            int line_idx = record_lines[j].line_index;
+            if (record_lines[j].should_delete) continue;  // Already marked
+            
+            // Check if this line contains the UUID
+            if (strstr(lines[line_idx], match_uuids[i])) {
+                record_lines[j].should_delete = true;
+                marked_for_deletion++;
+                #ifdef DEBUG
+                fprintf(stderr, "[DEBUG] Marked record at line %d for deletion (UUID: %s)\n", 
+                        line_idx, match_uuids[i]);
+                #endif
+                break;  // Found this UUID, move to next
+            }
         }
     }
 
+    // Clean up UUID strings
+    for (int i = 0; i < match_count; i++) {
+        free(match_uuids[i]);
+    }
+    free(match_uuids);
+    
     // If nothing to delete, clean up and return
     if (marked_for_deletion == 0) {
         for (int i = 0; i < line_count; i++) {
@@ -213,6 +235,7 @@ static int delete_records_from_file(const char* data_path, const TableSchema* sc
     
     return deleted;
 }
+
 /**
  * @brief Execute a DELETE statement
  */
