@@ -6,12 +6,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <dirent.h>  /* For DIR, opendir, readdir, closedir */
 #include "table_scan.h"
 #include "../kernel/filter_generator.h"
 #include "../kernel/projection_generator.h"
 #include "../kernel/kernel_generator.h"
 #include "../kernel/kernel_compiler.h"
 #include "../kernel/kernel_loader.h"
+#include "../query/query_executor.h"  /* For load_table_schema declaration */
 
 /**
  * @brief Initialize a table scan
@@ -150,6 +152,7 @@ int next_matching_record(TableScan* scan) {
     
     // Get current record if we don't have one
     if (!scan->current_record) {
+        // This should use get_current_record from record_access.h, which takes a TableCursor
         if (get_current_record(&scan->cursor, &scan->current_record) != 0) {
             scan->at_end = true;
             return 1;
@@ -171,7 +174,7 @@ int next_matching_record(TableScan* scan) {
             return result;
         }
         
-        // Get the new current record
+        // Get the new current record - again using the cursor version
         if (get_current_record(&scan->cursor, &scan->current_record) != 0) {
             scan->at_end = true;
             return 1;
@@ -180,11 +183,10 @@ int next_matching_record(TableScan* scan) {
     
     return 1;
 }
-
 /**
- * @brief Get the current record
+ * @brief Get the current record from the scanner
  */
-int get_current_record(const TableScan* scan, void** record) {
+int get_scan_record(const TableScan* scan, void** record) {
     if (!scan || !scan->initialized || !record) {
         return -1;
     }

@@ -69,7 +69,7 @@ int next_matching_record(TableScan* scan);
  * @param record Output parameter for record pointer
  * @return 0 on success, -1 on error
  */
-int get_current_record(const TableScan* scan, void** record);
+int get_scan_record(const TableScan* scan, void** record);
 
 /**
  * @brief Get a projected view of the current record

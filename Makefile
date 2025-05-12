@@ -52,7 +52,8 @@ QUERY_SRCS = $(SRC_DIR)/query/query_executor.c \
              $(SRC_DIR)/query/insert_executor.c \
              $(SRC_DIR)/query/update_executor.c \
              $(SRC_DIR)/query/delete_executor.c \
-             $(SRC_DIR)/query/create_table_executor.c
+             $(SRC_DIR)/query/create_table_executor.c \
+             $(SRC_DIR)/query/table_scan.c
 
 CLI_SRCS = $(SRC_DIR)/cli/cli_main.c \
            $(SRC_DIR)/cli/interactive_mode.c \
@@ -63,8 +64,16 @@ CLI_SRCS = $(SRC_DIR)/cli/cli_main.c \
            
 UTIL_SRCS = $(SRC_DIR)/util/uuid_utils.c
 
+# New index module
+INDEX_SRCS = $(SRC_DIR)/index/index_manager.c \
+             $(SRC_DIR)/index/index_generator.c \
+             $(SRC_DIR)/index/btree_index.c \
+             $(SRC_DIR)/index/hash_index.c \
+             $(SRC_DIR)/index/index_compiler.c
+
 # All source files
-ALL_SRCS = $(SCHEMA_SRCS) $(PAGES_SRCS) $(LOADER_SRCS) $(PARSER_SRCS) $(KERNEL_SRCS) $(QUERY_SRCS) $(CLI_SRCS) $(UTIL_SRCS)
+ALL_SRCS = $(SCHEMA_SRCS) $(PAGES_SRCS) $(LOADER_SRCS) $(PARSER_SRCS) $(KERNEL_SRCS) \
+           $(QUERY_SRCS) $(CLI_SRCS) $(UTIL_SRCS) $(INDEX_SRCS)
 
 # Object files
 SCHEMA_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SCHEMA_SRCS))
@@ -75,8 +84,10 @@ KERNEL_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(KERNEL_SRCS))
 QUERY_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(QUERY_SRCS))
 CLI_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(CLI_SRCS))
 UTIL_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(UTIL_SRCS))
+INDEX_OBJS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(INDEX_SRCS))
 
-ALL_OBJS = $(SCHEMA_OBJS) $(PAGES_OBJS) $(LOADER_OBJS) $(PARSER_OBJS) $(KERNEL_OBJS) $(QUERY_OBJS) $(CLI_OBJS) $(UTIL_OBJS)
+ALL_OBJS = $(SCHEMA_OBJS) $(PAGES_OBJS) $(LOADER_OBJS) $(PARSER_OBJS) $(KERNEL_OBJS) \
+           $(QUERY_OBJS) $(CLI_OBJS) $(UTIL_OBJS) $(INDEX_OBJS)
 
 # Static library
 UMBRA_LIB = $(LIB_DIR)/libumbra.a
@@ -92,11 +103,14 @@ UMBRA_CLI = $(BIN_DIR)/umbra
 all: $(UMBRA_LIB) $(UMBRA_CLI) tests
 
 # Create necessary directories
-$(BUILD_DIR) $(OBJ_DIR) $(LIB_DIR) $(BIN_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader $(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli $(OBJ_DIR)/util:
+$(BUILD_DIR) $(OBJ_DIR) $(LIB_DIR) $(BIN_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages \
+$(OBJ_DIR)/loader $(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli \
+$(OBJ_DIR)/util $(OBJ_DIR)/index:
 	@mkdir -p $@
 
 # Build object files
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader $(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli $(OBJ_DIR)/util
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader \
+$(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli $(OBJ_DIR)/util $(OBJ_DIR)/index
 	@echo "CC $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
@@ -133,25 +147,16 @@ debug_test: tests
 	@echo "Debugging test_create_table with gdb..."
 	@gdb --args $(BIN_DIR)/test_create_table
 
-# Debug test with valgrind
-valgrind_test: tests
-	@echo "Running test_create_table with valgrind..."
-	@valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $(BIN_DIR)/test_create_table
+# Index specific tests
+test_indices: $(BIN_DIR)/test_indices
+	@echo "Running index tests..."
+	@$< || exit 1
 
 # Clean build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
 	@rm -rf $(BUILD_DIR)
 	@rm -rf test_db  # Clean test database directories
-
-# Specific test targets
-test_create_table: $(BIN_DIR)/test_create_table
-	@echo "Running test_create_table..."
-	@$< || exit 1
-
-test_crud: $(BIN_DIR)/test_crud
-	@echo "Running test_crud..."
-	@$< || exit 1
 
 # Install target (optional)
 PREFIX ?= /usr/local
@@ -178,6 +183,7 @@ info:
 	@echo "  Kernel: $(KERNEL_SRCS)"
 	@echo "  Query: $(QUERY_SRCS)"
 	@echo "  CLI: $(CLI_SRCS)"
+	@echo "  Index: $(INDEX_SRCS)"
 	@echo ""
 	@echo "Object files:"
 	@echo "  Schema: $(SCHEMA_OBJS)"
@@ -187,17 +193,19 @@ info:
 	@echo "  Kernel: $(KERNEL_OBJS)"
 	@echo "  Query: $(QUERY_OBJS)"
 	@echo "  CLI: $(CLI_OBJS)"
+	@echo "  Index: $(INDEX_OBJS)"
 	@echo ""
 	@echo "Test binaries: $(TEST_BINS)"
 	@echo "Library: $(UMBRA_LIB)"
 	@echo "CLI: $(UMBRA_CLI)"
 
 # Phony targets
-.PHONY: all clean tests test install uninstall info test_create_table test_crud debug_test valgrind_test
+.PHONY: all clean tests test install uninstall info test_create_table test_indices debug_test
 
 # Dependencies (automatically generated)
 -include $(ALL_OBJS:.o=.d)
 
 # Generate dependency files
-$(OBJ_DIR)/%.d: $(SRC_DIR)/%.c | $(OBJ_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader $(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli $(OBJ_DIR)/util
+$(OBJ_DIR)/%.d: $(SRC_DIR)/%.c | $(OBJ_DIR) $(OBJ_DIR)/schema $(OBJ_DIR)/pages $(OBJ_DIR)/loader \
+$(OBJ_DIR)/parser $(OBJ_DIR)/kernel $(OBJ_DIR)/query $(OBJ_DIR)/cli $(OBJ_DIR)/util $(OBJ_DIR)/index
 	@$(CC) $(CFLAGS) -MM -MT $(@:.d=.o) $< > $@
