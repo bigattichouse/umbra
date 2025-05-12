@@ -71,4 +71,41 @@ int get_current_record(const TableCursor* cursor, void** record);
  */
 int count_table_records(const char* base_dir, const char* table_name, int* count);
 
+
+/**
+ * @brief Get field pointer from a record by field name
+ * @param record Pointer to record
+ * @param schema Table schema
+ * @param field_name Field name to retrieve
+ * @return Pointer to field value or NULL if not found
+ */
+void* get_field_from_record(void* record, const TableSchema* schema, const char* field_name);
+
+/**
+ * @brief Get field pointer from a record by field index
+ * @param record Pointer to record
+ * @param schema Table schema
+ * @param field_idx Field index to retrieve
+ * @return Pointer to field value or NULL if index invalid
+ */
+void* get_field_by_index(void* record, const TableSchema* schema, int field_idx);
+
+/**
+ * @brief Find UUID column index in schema
+ * @param schema Table schema
+ * @return Index of UUID column or -1 if not found
+ */
+int find_uuid_column_index(const TableSchema* schema);
+
+/**
+ * @brief Get UUID string from record
+ * @param record Pointer to record
+ * @param schema Table schema
+ * @return Duplicated UUID string (caller must free) or NULL if not found
+ */
+char* get_uuid_from_record(void* record, const TableSchema* schema);
+
+
+
+
 #endif /* UMBRA_RECORD_ACCESS_H */

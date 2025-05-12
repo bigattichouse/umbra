@@ -149,6 +149,44 @@ int generate_index_source(const TableSchema* schema, const IndexDefinition* inde
         }
     }
     
+    // Find the column in the schema to get its type
+    int col_idx = -1;
+    for (int i = 0; i < schema->column_count; i++) {
+        if (strcasecmp(schema->columns[i].name, index_def->column_name) == 0) {
+            col_idx = i;
+            break;
+        }
+    }
+    
+    if (col_idx == -1) {
+        fprintf(stderr, "Column %s not found in schema\n", index_def->column_name);
+        return -1;
+    }
+    
+    // Determine the C type for the column
+    const char* key_type;
+    switch (schema->columns[col_idx].type) {
+        case TYPE_INT:
+            key_type = "int";
+            break;
+        case TYPE_FLOAT:
+            key_type = "double";
+            break;
+        case TYPE_VARCHAR:
+        case TYPE_TEXT:
+            key_type = "const char*";
+            break;
+        case TYPE_BOOLEAN:
+            key_type = "bool";
+            break;
+        case TYPE_DATE:
+            key_type = "time_t";
+            break;
+        default:
+            fprintf(stderr, "Unsupported data type for index\n");
+            return -1;
+    }
+    
     // Create the index source file
     char src_path[3072];
     const char* type_str = (index_def->type == INDEX_TYPE_BTREE) ? "btree" : "hash";
@@ -177,6 +215,8 @@ int generate_index_source(const TableSchema* schema, const IndexDefinition* inde
         fprintf(src_file, " */\n\n");
         fprintf(src_file, "#include <stdlib.h>\n");
         fprintf(src_file, "#include <string.h>\n");
+        fprintf(src_file, "#include <stdbool.h>\n");
+        fprintf(src_file, "#include <time.h>\n");
         fprintf(src_file, "#include \"../%s.h\"\n\n", schema->name);
         
         // Add basic index function implementations
@@ -188,7 +228,8 @@ int generate_index_source(const TableSchema* schema, const IndexDefinition* inde
         fprintf(src_file, "    return 0;\n");
         fprintf(src_file, "}\n\n");
         
-        fprintf(src_file, "int find_by_index(/* key type */ key, int* positions, int max_positions) {\n");
+        // Use the actual type instead of a placeholder comment
+        fprintf(src_file, "int find_by_index(%s key, int* positions, int max_positions) {\n", key_type);
         fprintf(src_file, "    return 0;\n");
         fprintf(src_file, "}\n");
     } else {
@@ -199,6 +240,8 @@ int generate_index_source(const TableSchema* schema, const IndexDefinition* inde
         fprintf(src_file, " */\n\n");
         fprintf(src_file, "#include <stdlib.h>\n");
         fprintf(src_file, "#include <string.h>\n");
+        fprintf(src_file, "#include <stdbool.h>\n");
+        fprintf(src_file, "#include <time.h>\n");
         fprintf(src_file, "#include \"../%s.h\"\n\n", schema->name);
         
         // Add basic index function implementations
@@ -210,7 +253,8 @@ int generate_index_source(const TableSchema* schema, const IndexDefinition* inde
         fprintf(src_file, "    return 0;\n");
         fprintf(src_file, "}\n\n");
         
-        fprintf(src_file, "int find_by_index(/* key type */ key, int* positions, int max_positions) {\n");
+        // Use the actual type instead of a placeholder comment
+        fprintf(src_file, "int find_by_index(%s key, int* positions, int max_positions) {\n", key_type);
         fprintf(src_file, "    return 0;\n");
         fprintf(src_file, "}\n");
     }
@@ -218,7 +262,6 @@ int generate_index_source(const TableSchema* schema, const IndexDefinition* inde
     fclose(src_file);
     return 0;
 }
-
 /**
  * @brief Build index from a data page
  */

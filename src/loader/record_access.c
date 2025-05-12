@@ -9,6 +9,8 @@
 #include <dirent.h>
 #include "record_access.h"
 #include "error_handler.h"
+#include "../schema/type_system.h"
+
 
 /**
  * @brief Count the number of page files for a table
@@ -305,4 +307,116 @@ int count_table_records(const char* base_dir, const char* table_name, int* count
     }
     
     return 0;
+}
+
+/**
+ * @brief Find UUID column index in schema
+ */
+int find_uuid_column_index(const TableSchema* schema) {
+    // Look for the _uuid column
+    for (int i = 0; i < schema->column_count; i++) {
+        if (strcmp(schema->columns[i].name, "_uuid") == 0) {
+            return i;
+        }
+    }
+    
+    // If not found, return -1
+    return -1;
+}
+
+/**
+ * @brief Get field pointer by index - implementation depends on how records are structured
+ */
+void* get_field_by_index(void* record, const TableSchema* schema, int field_idx) {
+    if (!record || !schema || field_idx < 0 || field_idx >= schema->column_count) {
+        return NULL;
+    }
+    
+    // This implementation assumes a specific memory layout
+    // In a production system, this would be generated based on the actual schema
+    // or use a more sophisticated approach
+    
+    char* record_bytes = (char*)record;
+    size_t offset = 0;
+    
+    // Calculate offset to the desired field, accounting for type sizes and alignment
+    for (int i = 0; i < field_idx; i++) {
+        const ColumnDefinition* col = &schema->columns[i];
+        size_t field_size = 0;
+        
+        switch (col->type) {
+            case TYPE_INT:
+                // Align to 4-byte boundary
+                offset = (offset + 3) & ~3;
+                field_size = sizeof(int);
+                break;
+            case TYPE_FLOAT:
+                // Align to 8-byte boundary
+                offset = (offset + 7) & ~7;
+                field_size = sizeof(double);
+                break;
+            case TYPE_BOOLEAN:
+                field_size = sizeof(bool);
+                break;
+            case TYPE_DATE:
+                // Align to 8-byte boundary
+                offset = (offset + 7) & ~7;
+                field_size = sizeof(time_t);
+                break;
+            case TYPE_VARCHAR:
+                field_size = col->length + 1;  // Include null terminator
+                break;
+            case TYPE_TEXT:
+                field_size = 4096;  // Fixed size for TEXT
+                break;
+            default:
+                return NULL;
+        }
+        
+        offset += field_size;
+    }
+    
+    // Return pointer to the field
+    return record_bytes + offset;
+}
+
+/**
+ * @brief Get field pointer by name
+ */
+void* get_field_from_record(void* record, const TableSchema* schema, const char* field_name) {
+    if (!record || !schema || !field_name) {
+        return NULL;
+    }
+    
+    // Find field index in schema
+    int field_idx = -1;
+    for (int i = 0; i < schema->column_count; i++) {
+        if (strcmp(schema->columns[i].name, field_name) == 0) {
+            field_idx = i;
+            break;
+        }
+    }
+    
+    if (field_idx < 0) {
+        return NULL;
+    }
+    
+    return get_field_by_index(record, schema, field_idx);
+}
+
+/**
+ * @brief Get UUID string from record
+ */
+char* get_uuid_from_record(void* record, const TableSchema* schema) {
+    int uuid_idx = find_uuid_column_index(schema);
+    if (uuid_idx < 0) {
+        return NULL;
+    }
+    
+    char* uuid_ptr = (char*)get_field_by_index(record, schema, uuid_idx);
+    if (!uuid_ptr || !*uuid_ptr) {
+        return NULL;
+    }
+    
+    return strdup(uuid_ptr);
 }
