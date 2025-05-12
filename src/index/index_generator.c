@@ -120,12 +120,102 @@ int generate_index_header(const TableSchema* schema, const IndexDefinition* inde
  */
 int generate_index_source(const TableSchema* schema, const IndexDefinition* index_def,
                          const char* base_dir, int page_number) {
-    (void)page_number;
     if (!schema || !index_def || !base_dir) {
         return -1;
     }
     
-    // [Implementation omitted for brevity]
+    // Create necessary directories first
+    char src_dir[2048];
+    snprintf(src_dir, sizeof(src_dir), "%s/tables/%s/src", base_dir, schema->name);
+    
+    struct stat st;
+    if (stat(src_dir, &st) != 0) {
+        // Directory doesn't exist, create it
+        if (mkdir(src_dir, 0755) != 0) {
+            fprintf(stderr, "Failed to create source directory: %s\n", strerror(errno));
+            return -1;
+        }
+    }
+    
+    // Create indices directory if needed
+    char indices_dir[2048];
+    snprintf(indices_dir, sizeof(indices_dir), "%s/tables/%s/indices", base_dir, schema->name);
+    
+    if (stat(indices_dir, &st) != 0) {
+        // Directory doesn't exist, create it
+        if (mkdir(indices_dir, 0755) != 0) {
+            fprintf(stderr, "Failed to create indices directory: %s\n", strerror(errno));
+            return -1;
+        }
+    }
+    
+    // Create the index source file
+    char src_path[3072];
+    const char* type_str = (index_def->type == INDEX_TYPE_BTREE) ? "btree" : "hash";
+    
+    if (page_number >= 0) {
+        snprintf(src_path, sizeof(src_path), "%s/%s_%s_index_%d.c", 
+                src_dir, type_str, index_def->column_name, page_number);
+    } else {
+        snprintf(src_path, sizeof(src_path), "%s/%s_%s_index.c", 
+                src_dir, type_str, index_def->column_name);
+    }
+    
+    // Open the source file for writing
+    FILE* src_file = fopen(src_path, "w");
+    if (!src_file) {
+        fprintf(stderr, "Failed to create index source file: %s\n", strerror(errno));
+        return -1;
+    }
+    
+    // Write index source code - this will depend on index type
+    if (index_def->type == INDEX_TYPE_BTREE) {
+        // Write B-tree index code
+        fprintf(src_file, "/**\n");
+        fprintf(src_file, " * Generated B-tree index for %s.%s\n", 
+                schema->name, index_def->column_name);
+        fprintf(src_file, " */\n\n");
+        fprintf(src_file, "#include <stdlib.h>\n");
+        fprintf(src_file, "#include <string.h>\n");
+        fprintf(src_file, "#include \"../%s.h\"\n\n", schema->name);
+        
+        // Add basic index function implementations
+        fprintf(src_file, "int init_index(void) {\n");
+        fprintf(src_file, "    return 0;\n");
+        fprintf(src_file, "}\n\n");
+        
+        fprintf(src_file, "int add_to_index(%s* record, int position) {\n", schema->name);
+        fprintf(src_file, "    return 0;\n");
+        fprintf(src_file, "}\n\n");
+        
+        fprintf(src_file, "int find_by_index(/* key type */ key, int* positions, int max_positions) {\n");
+        fprintf(src_file, "    return 0;\n");
+        fprintf(src_file, "}\n");
+    } else {
+        // Write Hash index code
+        fprintf(src_file, "/**\n");
+        fprintf(src_file, " * Generated Hash index for %s.%s\n", 
+                schema->name, index_def->column_name);
+        fprintf(src_file, " */\n\n");
+        fprintf(src_file, "#include <stdlib.h>\n");
+        fprintf(src_file, "#include <string.h>\n");
+        fprintf(src_file, "#include \"../%s.h\"\n\n", schema->name);
+        
+        // Add basic index function implementations
+        fprintf(src_file, "int init_index(void) {\n");
+        fprintf(src_file, "    return 0;\n");
+        fprintf(src_file, "}\n\n");
+        
+        fprintf(src_file, "int add_to_index(%s* record, int position) {\n", schema->name);
+        fprintf(src_file, "    return 0;\n");
+        fprintf(src_file, "}\n\n");
+        
+        fprintf(src_file, "int find_by_index(/* key type */ key, int* positions, int max_positions) {\n");
+        fprintf(src_file, "    return 0;\n");
+        fprintf(src_file, "}\n");
+    }
+    
+    fclose(src_file);
     return 0;
 }
 
@@ -138,7 +228,20 @@ int build_index_from_page(const TableSchema* schema, const IndexDefinition* inde
         return -1;
     }
     
-    // [Implementation omitted for brevity]
+    // First make sure the index source file exists
+    int result = generate_index_source(schema, index_def, base_dir, page_number);
+    if (result != 0) {
+        fprintf(stderr, "Failed to generate index source file\n");
+        return -1;
+    }
+    
+    // Generate compilation script for the index
+    result = generate_index_compile_script(schema, index_def, base_dir, page_number);
+    if (result != 0) {
+        fprintf(stderr, "Failed to generate index compilation script\n");
+        return -1;
+    }
+    
     return 0;
 }
 

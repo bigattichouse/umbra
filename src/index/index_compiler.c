@@ -121,6 +121,17 @@ int generate_index_compile_script(const TableSchema* schema, const IndexDefiniti
         }
     }
     
+    // Create compiled directory if needed
+    char compiled_dir[2048];
+    snprintf(compiled_dir, sizeof(compiled_dir), "%s/compiled", base_dir);
+    
+    if (stat(compiled_dir, &st) != 0) {
+        if (mkdir(compiled_dir, 0755) != 0) {
+            fprintf(stderr, "Failed to create compiled directory: %s\n", strerror(errno));
+            return -1;
+        }
+    }  
+    
     // Get index type from name
     IndexType index_type = get_index_type_from_name(index_def->index_name);
     
