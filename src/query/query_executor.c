@@ -36,6 +36,7 @@ static QueryResult* create_query_result(void) {
     result->result_schema = NULL;
     result->success = false;
     result->error_message = NULL;
+    result->row_format = ROW_FORMAT_DIRECT; // Default to direct format
     return result;
 }
 

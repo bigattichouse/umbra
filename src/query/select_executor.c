@@ -277,12 +277,12 @@ int execute_select(const SelectStatement* stmt, const char* base_dir, QueryResul
     
     fprintf(stderr, "[DEBUG] Total results: %d\n", total_results);
     
-    
-    
+
     // Set result data
     result->rows = (void**)results_buffer;
     result->row_count = total_results;
     result->success = true;
+    result->row_format = ROW_FORMAT_DIRECT; // Or ROW_FORMAT_POINTER_ARRAY depending on how your kernel returns data
     
     // Cleanup
     unload_kernel(&loaded_kernel);

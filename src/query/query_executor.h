@@ -9,6 +9,11 @@
 #include "../parser/ast.h"
 #include "../schema/schema_parser.h"
 
+typedef enum {
+    ROW_FORMAT_DIRECT,         /* Row is a direct pointer to a record */
+    ROW_FORMAT_POINTER_ARRAY   /* Row is an array of pointers to fields */
+} RowFormat;
+
 /**
  * @struct QueryResult
  * @brief Result of query execution
@@ -19,6 +24,7 @@ typedef struct {
     TableSchema* result_schema; /**< Schema of result set */
     bool success;               /**< Whether query succeeded */
     char* error_message;        /**< Error message if failed */
+    RowFormat row_format;       /**< Format of row data */
 } QueryResult;
 
 /**

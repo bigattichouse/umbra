@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "result_formatter.h"
+#include "../loader/record_access.h"
 
 /**
  * @brief Get string representation of a field value
@@ -20,27 +21,52 @@ static void get_field_string(const QueryResult* result, void* row, int col_idx,
     
     const ColumnDefinition* col = &result->result_schema->columns[col_idx];
     
-    // Calculate the field offset - this is a simplified approach
-    // In reality, we'd need to know the exact memory layout of the struct
-    char* record = (char*)row;
+    // Special handling for rows_affected results from INSERT/UPDATE/DELETE
+    if (result->result_schema->column_count == 1 && 
+        strcmp(result->result_schema->columns[0].name, "rows_affected") == 0) {
+        // In this case, row is a direct pointer to an integer
+        int value = *(int*)row;
+        snprintf(buffer, buffer_size, "%d", value);
+        return;
+    }
     
-    // Get field based on type - this is a simplified approach
-    // We're assuming the struct fields are in the same order as the schema columns
-    // In a real implementation, we would need to know the exact layout
+    // There are two possible formats for row data:
+    // 1. A direct pointer to a record struct
+    // 2. An array of pointers to individual fields
+    
+    void* field_value = NULL;
+    
+    // Check if we're dealing with a flattened row (array of pointers)
+    // This is common for compiled database results
+    if (result->row_format == ROW_FORMAT_POINTER_ARRAY) {
+        void** fields = (void**)row;
+        field_value = fields[col_idx];
+    } else {
+        // Use record_access.c to get the field by index
+        field_value = get_field_by_index(row, result->result_schema, col_idx);
+    }
+    
+    if (!field_value) {
+        strncpy(buffer, "NULL", buffer_size - 1);
+        buffer[buffer_size - 1] = '\0';
+        return;
+    }
+    
+    // Convert the field to string based on type
     switch (col->type) {
         case TYPE_INT: {
-            int value = *(int*)record;
+            int value = *(int*)field_value;
             snprintf(buffer, buffer_size, "%d", value);
             break;
         }
         case TYPE_FLOAT: {
-            double value = *(double*)record;
+            double value = *(double*)field_value;
             snprintf(buffer, buffer_size, "%.6f", value);
             break;
         }
         case TYPE_VARCHAR:
         case TYPE_TEXT: {
-            const char* value = (const char*)record;
+            const char* value = (const char*)field_value;
             if (value) {
                 strncpy(buffer, value, buffer_size - 1);
                 buffer[buffer_size - 1] = '\0';
@@ -51,13 +77,13 @@ static void get_field_string(const QueryResult* result, void* row, int col_idx,
             break;
         }
         case TYPE_BOOLEAN: {
-            bool value = *(bool*)record;
+            bool value = *(bool*)field_value;
             strncpy(buffer, value ? "true" : "false", buffer_size - 1);
             buffer[buffer_size - 1] = '\0';
             break;
         }
         case TYPE_DATE: {
-            time_t value = *(time_t*)record;
+            time_t value = *(time_t*)field_value;
             struct tm* tm_info = localtime(&value);
             if (tm_info) {
                 strftime(buffer, buffer_size, "%Y-%m-%d", tm_info);
