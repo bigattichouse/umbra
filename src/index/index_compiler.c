@@ -45,8 +45,9 @@ static int get_index_source_path(const TableSchema* schema, const char* column_n
     char src_dir[2048];
     snprintf(src_dir, sizeof(src_dir), "%s/tables/%s/src", base_dir, schema->name);
     
-    return snprintf(output, output_size, "%s/%s_%s_index_%d.c", 
-                    src_dir, type_str, column_name, page_number);
+    // Use the same pattern as in index_generator.c
+    return snprintf(output, output_size, "%s/%s_%s_index_%s_%d.c", 
+                    src_dir, schema->name, type_str, column_name, page_number);
 }
 
 /**

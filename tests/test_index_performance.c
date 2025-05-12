@@ -253,52 +253,19 @@ int test_query_performance() {
         printf("Query executed in %.4f seconds\n", get_elapsed_seconds(&timer));
         printf("Returned %d rows\n", result->row_count);
         
-        // Display first few results
-        if (result->row_count > 0) {
-            printf("First row data: ");
-            void* record = result->rows[0];
-            
-            if (record) {
-                for (int col = 0; col < result->result_schema->column_count; col++) {
-                    DataType type = result->result_schema->columns[col].type;
-                    
-                    printf("%s=", result->result_schema->columns[col].name);
-                    
-                    // This is simplified and may not work for all record layouts
-                    // Actual implementation would depend on the record structure
-                    switch (type) {
-                        case TYPE_INT: {
-                            int* value = (int*)((char*)record + col * sizeof(int));
-                            printf("%d", *value);
-                            break;
-                        }
-                        case TYPE_FLOAT: {
-                            double* value = (double*)((char*)record + col * sizeof(double));
-                            printf("%.2f", *value);
-                            break;
-                        }
-                        case TYPE_VARCHAR:
-                        case TYPE_TEXT: {
-                            char* value = (char*)record + col * 256; // Assuming fixed size
-                            printf("\"%s\"", value);
-                            break;
-                        }
-                        case TYPE_BOOLEAN: {
-                            bool* value = (bool*)((char*)record + col * sizeof(bool));
-                            printf("%s", *value ? "true" : "false");
-                            break;
-                        }
-                        default:
-                            printf("(unknown)");
-                            break;
-                    }
-                    
-                    if (col < result->result_schema->column_count - 1) {
-                        printf(", ");
-                    }
+        // Display field names only, without trying to access values
+        if (result->row_count > 0 && result->result_schema != NULL) {
+            printf("Result fields: ");
+            for (int col = 0; col < result->result_schema->column_count; col++) {
+                printf("%s", result->result_schema->columns[col].name);
+                if (col < result->result_schema->column_count - 1) {
+                    printf(", ");
                 }
-                printf("\n");
             }
+            printf("\n");
+            
+            // IMPORTANT: Skip displaying the values to avoid segmentation fault
+            printf("(Value display disabled to avoid memory access issues)\n");
         }
         
         free_query_result(result);
