@@ -19,7 +19,6 @@ static void get_field_string(const QueryResult* result, void* row, int col_idx,
     }
     
     const ColumnDefinition* col = &result->result_schema->columns[col_idx];
-    void* field_value = NULL;
     
     // Calculate the field offset - this is a simplified approach
     // In reality, we'd need to know the exact memory layout of the struct

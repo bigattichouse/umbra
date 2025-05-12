@@ -317,8 +317,6 @@ int create_index(IndexManager* manager, const char* column_name,
     return 0;
 }
 
-/* Remaining implementation not shown for brevity */
-
 /**
  * @brief Execute a CREATE INDEX statement
  */
@@ -341,29 +339,58 @@ CreateIndexResult* execute_create_index(const char* create_statement, const char
         return result;
     }
     
+    fprintf(stderr, "Creating index on table '%s', column '%s', type '%s'\n", 
+            table_name, column_name, 
+            index_type == INDEX_TYPE_BTREE ? "BTREE" : "HASH");
+    
     // Initialize index manager
     IndexManager manager;
     if (init_index_manager(&manager, table_name) != 0) {
         set_error(result, "Failed to initialize index manager");
-        free_index_manager(&manager);
         return result;
     }
     
     // Load existing indices
     if (load_index_metadata(&manager, base_dir) != 0) {
-        set_error(result, "Failed to load index metadata");
+        fprintf(stderr, "Warning: Failed to load existing index metadata\n");
+        // Non-fatal error, continue with empty index list
+    }
+    
+    // Check if column is already indexed
+    if (is_column_indexed(&manager, column_name)) {
+        set_error(result, "Column '%s' is already indexed", column_name);
         free_index_manager(&manager);
         return result;
     }
     
-    // Create index
-    if (create_index(&manager, column_name, index_type, base_dir) != 0) {
+    // Load table schema
+    TableSchema* schema = load_table_schema(table_name, base_dir);
+    if (!schema) {
+        set_error(result, "Table '%s' not found", table_name);
+        free_index_manager(&manager);
+        return result;
+    }
+    
+    // Verify column exists in schema
+    int col_idx = get_column_index(schema, column_name);
+    if (col_idx < 0) {
+        set_error(result, "Column '%s' not found in table '%s'", column_name, table_name);
+        free_table_schema(schema);
+        free_index_manager(&manager);
+        return result;
+    }
+    
+    // Create the index
+    int create_result = create_index(&manager, column_name, index_type, base_dir);
+    if (create_result != 0) {
         set_error(result, "Failed to create index");
+        free_table_schema(schema);
         free_index_manager(&manager);
         return result;
     }
     
-    // Cleanup
+    // Success - clean up and return
+    free_table_schema(schema);
     free_index_manager(&manager);
     
     result->success = true;
@@ -376,11 +403,9 @@ CreateIndexResult* execute_create_index(const char* create_statement, const char
 void free_create_index_result(CreateIndexResult* result) {
     if (result) {
         free(result->error_message);
-        result->error_message = NULL;
         free(result);
     }
 }
-
 /**
  * @brief Parse a CREATE INDEX statement
  */
