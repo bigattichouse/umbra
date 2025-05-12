@@ -325,59 +325,83 @@ int find_uuid_column_index(const TableSchema* schema) {
 }
 
 /**
- * @brief Get field pointer by index - implementation depends on how records are structured
+ * @brief Get pointer to field by index with proper handling of string types
+ * @param record Pointer to record struct
+ * @param schema Schema describing the record structure
+ * @param col_idx Index of column to retrieve
+ * @return Pointer to the field or NULL on error
  */
-void* get_field_by_index(void* record, const TableSchema* schema, int field_idx) {
-    if (!record || !schema || field_idx < 0 || field_idx >= schema->column_count) {
+void* get_field_by_index(void* record, const TableSchema* schema, int col_idx) {
+    if (!record || !schema || col_idx < 0 || col_idx >= schema->column_count) {
         return NULL;
     }
     
-    // This implementation assumes a specific memory layout
-    // In a production system, this would be generated based on the actual schema
-    // or use a more sophisticated approach
-    
-    char* record_bytes = (char*)record;
+    // Calculate proper field offset
     size_t offset = 0;
     
-    // Calculate offset to the desired field, accounting for type sizes and alignment
-    for (int i = 0; i < field_idx; i++) {
+    for (int i = 0; i < col_idx; i++) {
         const ColumnDefinition* col = &schema->columns[i];
         size_t field_size = 0;
+        size_t alignment = 1;
         
         switch (col->type) {
             case TYPE_INT:
-                // Align to 4-byte boundary
-                offset = (offset + 3) & ~3;
                 field_size = sizeof(int);
+                alignment = __alignof__(int);
                 break;
             case TYPE_FLOAT:
-                // Align to 8-byte boundary
-                offset = (offset + 7) & ~7;
                 field_size = sizeof(double);
+                alignment = __alignof__(double);
                 break;
             case TYPE_BOOLEAN:
                 field_size = sizeof(bool);
+                alignment = __alignof__(bool);
                 break;
             case TYPE_DATE:
-                // Align to 8-byte boundary
-                offset = (offset + 7) & ~7;
                 field_size = sizeof(time_t);
+                alignment = __alignof__(time_t);
                 break;
             case TYPE_VARCHAR:
-                field_size = col->length + 1;  // Include null terminator
+                // VARCHAR fields are inline char arrays, not pointers
+                field_size = col->length + 1;  // Add space for null terminator
+                alignment = 1;  // Char arrays are byte-aligned
                 break;
             case TYPE_TEXT:
+                // TEXT fields are typically larger inline arrays
                 field_size = 4096;  // Fixed size for TEXT
+                alignment = 1;
                 break;
             default:
-                return NULL;
+                return NULL;  // Unknown type
         }
         
+        // Align offset to field requirements
+        offset = (offset + alignment - 1) & ~(alignment - 1);
         offset += field_size;
     }
     
-    // Return pointer to the field
-    return record_bytes + offset;
+    // Align offset for the target field
+    const ColumnDefinition* target_col = &schema->columns[col_idx];
+    size_t target_alignment = 1;
+    
+    switch (target_col->type) {
+        case TYPE_INT: target_alignment = __alignof__(int); break;
+        case TYPE_FLOAT: target_alignment = __alignof__(double); break;
+        case TYPE_BOOLEAN: target_alignment = __alignof__(bool); break;
+        case TYPE_DATE: target_alignment = __alignof__(time_t); break;
+        case TYPE_VARCHAR:
+        case TYPE_TEXT: target_alignment = 1; break;
+        default: return NULL;
+    }
+    
+    offset = (offset + target_alignment - 1) & ~(target_alignment - 1);
+    
+    #ifdef DEBUG_FIELD_ACCESS
+    fprintf(stderr, "Field access - table: %s, column: %s, offset: %zu\n",
+            schema->name, target_col->name, offset);
+    #endif
+    
+    return (char*)record + offset;
 }
 
 /**

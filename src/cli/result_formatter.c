@@ -37,15 +37,17 @@ static void get_field_string(const QueryResult* result, void* row, int col_idx,
     void* field_value = NULL;
     
     // Check if we're dealing with a flattened row (array of pointers)
-    // This is common for compiled database results
     if (result->row_format == ROW_FORMAT_POINTER_ARRAY) {
         void** fields = (void**)row;
-        field_value = fields[col_idx];
+        if (col_idx >= 0 && col_idx < result->result_schema->column_count) {
+            field_value = fields[col_idx];
+        }
     } else {
         // Use record_access.c to get the field by index
         field_value = get_field_by_index(row, result->result_schema, col_idx);
     }
     
+    // Handle NULL field value safely
     if (!field_value) {
         strncpy(buffer, "NULL", buffer_size - 1);
         buffer[buffer_size - 1] = '\0';
@@ -66,10 +68,15 @@ static void get_field_string(const QueryResult* result, void* row, int col_idx,
         }
         case TYPE_VARCHAR:
         case TYPE_TEXT: {
+            // Use a safer approach for strings
             const char* value = (const char*)field_value;
             if (value) {
-                strncpy(buffer, value, buffer_size - 1);
-                buffer[buffer_size - 1] = '\0';
+                // Manual string copy with bounds checking
+                size_t i;
+                for (i = 0; i < buffer_size - 1 && value[i] != '\0'; i++) {
+                    buffer[i] = value[i];
+                }
+                buffer[i] = '\0';
             } else {
                 strncpy(buffer, "NULL", buffer_size - 1);
                 buffer[buffer_size - 1] = '\0';
