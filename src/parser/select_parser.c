@@ -431,14 +431,21 @@ static Expression* parse_primary(Parser* parser) {
             return parse_literal(parser);
             
         case TOKEN_IDENTIFIER: {
-            // Look ahead to see if this is a function call
-            Token next_token = lexer_peek_token(parser->lexer);
-            if (next_token.type == TOKEN_LPAREN) {
-                return parse_function_call(parser);
-            } else {
-                return parse_column_ref(parser);
+                // Look ahead to see if this is a function call
+                Token next_token = lexer_peek_token(parser->lexer);
+                bool is_function = (next_token.type == TOKEN_LPAREN);
+                
+                // Free the token value to avoid a memory leak
+                if (next_token.value) {
+                    free(next_token.value);
+                }
+                
+                if (is_function) {
+                    return parse_function_call(parser);
+                } else {
+                    return parse_column_ref(parser);
+                }
             }
-        }
         
         case TOKEN_LPAREN: {
             parser->current_token = lexer_next_token(parser->lexer);
