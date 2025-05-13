@@ -25,7 +25,15 @@ void parser_init(Parser* parser, Lexer* lexer) {
     parser->lexer = lexer;
     parser->error_message[0] = '\0';
     parser->has_error = false;
-    parser->current_token = lexer_next_token(lexer);
+    
+    // Get the token from lexer
+    Token token = lexer_next_token(lexer);
+    
+    // Create a deep copy
+    parser->current_token.type = token.type;
+    parser->current_token.line = token.line;
+    parser->current_token.column = token.column;
+    parser->current_token.value = token.value ? strdup(token.value) : NULL;
 }
 
 /**
@@ -34,6 +42,8 @@ void parser_init(Parser* parser, Lexer* lexer) {
 void parser_free(Parser* parser) {
     if (parser) { 
         token_free(&parser->current_token); 
+        // Set to NULL after freeing to prevent double-free
+        parser->current_token.value = NULL;
     }
 }
 
