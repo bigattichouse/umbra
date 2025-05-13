@@ -411,6 +411,9 @@ QueryResult* execute_query(const char* sql, const char* base_dir) {
                 *row_data = insert_result->rows_affected;
                 result->rows[0] = row_data;
                 result->row_count = 1;
+                
+                // Explicitly set to pointer array format
+                result->row_format = ROW_FORMAT_POINTER_ARRAY;
             } else {
                 result->error_message = strdup(insert_result->error_message);
             }
@@ -444,10 +447,13 @@ QueryResult* execute_query(const char* sql, const char* base_dir) {
                 
                 // Create result row
                 result->rows = malloc(sizeof(void*));
-                int* row_data = malloc(sizeof(int));
+                int* row_data = malloc(sizeof(int));  // This is the memory being leaked
                 *row_data = update_result->rows_affected;
                 result->rows[0] = row_data;
                 result->row_count = 1;
+                
+                // Add this line to fix the leak:
+                result->row_format = ROW_FORMAT_POINTER_ARRAY;
             } else {
                 result->error_message = strdup(update_result->error_message);
             }
@@ -457,7 +463,7 @@ QueryResult* execute_query(const char* sql, const char* base_dir) {
             break;
         }
         
-        case AST_DELETE_STATEMENT: {
+         case AST_DELETE_STATEMENT: {
             // Execute DELETE statement
             DeleteResult* delete_result = execute_delete(node->data.delete_stmt, base_dir);
             
@@ -485,6 +491,9 @@ QueryResult* execute_query(const char* sql, const char* base_dir) {
                 *row_data = delete_result->rows_affected;
                 result->rows[0] = row_data;
                 result->row_count = 1;
+                
+                // Add this line to fix the leak:
+                result->row_format = ROW_FORMAT_POINTER_ARRAY;
             } else {
                 result->error_message = strdup(delete_result->error_message);
             }
@@ -509,13 +518,23 @@ QueryResult* execute_query(const char* sql, const char* base_dir) {
 void free_query_result(QueryResult* result) {
     if (!result) return;
     
-    // Free rows - array of pointers
+    // Free rows according to the row format
     if (result->rows) {
+        if (result->row_format == ROW_FORMAT_POINTER_ARRAY) {
+            // If using pointer array format, free each row's data
+            for (int i = 0; i < result->row_count; i++) {
+                if (result->rows[i]) {
+                    free(result->rows[i]);
+                }
+            }
+        }
+        // Always free the row pointer array itself
         free(result->rows);
         result->rows = NULL;
     }
     
     // Free raw data buffer if it exists
+    // This buffer holds the actual row data in ROW_FORMAT_DIRECT mode
     if (result->raw_data_buffer) {
         free(result->raw_data_buffer);
         result->raw_data_buffer = NULL;

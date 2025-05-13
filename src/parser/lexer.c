@@ -96,9 +96,14 @@ void token_unref(Token* token) {
  */
 Token token_copy(const Token* token) {
     Token copy = *token; // Make a shallow copy
-    if (copy.value) {
-        copy.ref_count = 1; // New copy starts with ref_count of 1
+    
+    // Create a deep copy of the value
+    if (token->value) {
+        copy.value = strdup(token->value);
     }
+    
+    // A new token starts with ref_count of 1
+    copy.ref_count = 1;
     return copy;
 }
 

@@ -250,7 +250,7 @@ int execute_select(const SelectStatement* stmt, const char* base_dir, QueryResul
         result->rows[0] = count_result;
         result->row_count = 1;
         result->success = true;
-        result->row_format = ROW_FORMAT_DIRECT;
+        result->row_format = ROW_FORMAT_POINTER_ARRAY; 
    } else {
         // Calculate record size based on schema - fix: add proper cast
         size_t record_size = calculate_record_size((const struct TableSchema*)source_schema);
