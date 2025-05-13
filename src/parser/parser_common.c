@@ -31,7 +31,23 @@ bool match(Parser* parser, TokenType type) {
             parser->current_token.value = NULL;
         }
         
-        parser->current_token = lexer_next_token(parser->lexer);
+        // Get the next token
+        Token next_token = lexer_next_token(parser->lexer);
+        
+        // Copy the token fields
+        parser->current_token.type = next_token.type;
+        parser->current_token.line = next_token.line;
+        parser->current_token.column = next_token.column;
+        
+        // Handle the value field carefully to avoid leaks
+        if (next_token.value) {
+            // Create a deep copy of the value
+            parser->current_token.value = strdup(next_token.value);
+            // No need to free next_token.value as lexer manages its own memory
+        } else {
+            parser->current_token.value = NULL;
+        }
+        
         return true;
     }
     return false;
