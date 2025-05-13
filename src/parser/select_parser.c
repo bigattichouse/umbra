@@ -16,6 +16,7 @@ static Expression* parse_primary(Parser* parser);
 static Expression* parse_comparison(Parser* parser);
 static Expression* parse_and(Parser* parser);
 static Expression* parse_or(Parser* parser);
+static Expression* parse_function_call(Parser* parser);
 
 /**
  * @brief Initialize parser with lexer
@@ -111,45 +112,6 @@ static Expression* parse_column_ref(Parser* parser) {
     
     free(first_name);
     return expr;
-}
-
-/**
- * @brief Parse a primary expression
- */
-static Expression* parse_primary(Parser* parser) {
-    switch (parser->current_token.type) {
-        case TOKEN_NUMBER:
-        case TOKEN_STRING:
-        case TOKEN_TRUE:
-        case TOKEN_FALSE:
-        case TOKEN_NULL:
-            return parse_literal(parser);
-            
-        case TOKEN_IDENTIFIER:
-            return parse_column_ref(parser);
-            
-        case TOKEN_LPAREN: {
-            parser->current_token = lexer_next_token(parser->lexer);
-            Expression* expr = parse_expression(parser);
-            if (!expr) return NULL;
-            
-            if (!expect(parser, TOKEN_RPAREN, "Expected ')' after expression")) {
-                free_expression(expr);
-                return NULL;
-            }
-            return expr;
-        }
-        
-        case TOKEN_STAR: {
-            Expression* expr = create_expression(AST_STAR);
-            parser->current_token = lexer_next_token(parser->lexer);
-            return expr;
-        }
-        
-        default:
-            parser_set_error(parser, "Expected expression");
-            return NULL;
-    }
 }
 
 /**
@@ -368,4 +330,136 @@ const char* parser_get_error(const Parser* parser) {
  */
 bool parser_has_error(const Parser* parser) {
     return parser->has_error;
+}
+
+/**
+ * @brief Parse a function call
+ */
+/**
+ * @brief Parse a function call
+ */
+/**
+ * @brief Parse a function call
+ */
+static Expression* parse_function_call(Parser* parser) {
+    if (parser->current_token.type != TOKEN_IDENTIFIER) {
+        parser_set_error(parser, "Expected function name");
+        return NULL;
+    }
+    
+    char* function_name = strdup(parser->current_token.value);
+    parser->current_token = lexer_next_token(parser->lexer);
+    
+    if (!expect(parser, TOKEN_LPAREN, "Expected '(' after function name")) {
+        free(function_name);
+        return NULL;
+    }
+    
+    // Create function call expression
+    Expression* expr = create_expression(AST_FUNCTION_CALL);
+    if (!expr) {
+        free(function_name);
+        parser_set_error(parser, "Memory allocation failed");
+        return NULL;
+    }
+    
+    FunctionCall* func_call = create_function_call(function_name);
+    free(function_name); // Function name copied to func_call
+    
+    if (!func_call) {
+        free_expression(expr);
+        parser_set_error(parser, "Memory allocation failed");
+        return NULL;
+    }
+    
+    expr->data.function = *func_call;
+    free(func_call);
+    
+    // Parse arguments
+    if (parser->current_token.type == TOKEN_RPAREN) {
+        // No arguments
+        parser->current_token = lexer_next_token(parser->lexer);
+    } else if (parser->current_token.type == TOKEN_STAR) {
+        // Special case for COUNT(*)
+        Expression* star_expr = create_expression(AST_STAR);
+        if (!star_expr) {
+            free_expression(expr);
+            parser_set_error(parser, "Memory allocation failed");
+            return NULL;
+        }
+        
+        add_function_argument(&expr->data.function, star_expr);
+        parser->current_token = lexer_next_token(parser->lexer);
+        
+        if (!expect(parser, TOKEN_RPAREN, "Expected ')' after '*'")) {
+            free_expression(expr);
+            return NULL;
+        }
+    } else {
+        // Parse comma-separated list of arguments
+        while (true) {
+            Expression* arg = parse_expression(parser);
+            if (!arg) {
+                free_expression(expr);
+                return NULL;
+            }
+            
+            add_function_argument(&expr->data.function, arg);
+            
+            if (match(parser, TOKEN_COMMA)) {
+                continue;
+            } else if (match(parser, TOKEN_RPAREN)) {
+                break;
+            } else {
+                parser_set_error(parser, "Expected ',' or ')' in argument list");
+                free_expression(expr);
+                return NULL;
+            }
+        }
+    }
+    
+    return expr;
+}
+
+static Expression* parse_primary(Parser* parser) {
+    switch (parser->current_token.type) {
+        case TOKEN_NUMBER:
+        case TOKEN_STRING:
+        case TOKEN_TRUE:
+        case TOKEN_FALSE:
+        case TOKEN_NULL:
+            return parse_literal(parser);
+            
+        case TOKEN_IDENTIFIER: {
+            // Look ahead to see if this is a function call
+            Token next_token = lexer_peek_token(parser->lexer);
+            if (next_token.type == TOKEN_LPAREN) {
+                return parse_function_call(parser);
+            } else {
+                return parse_column_ref(parser);
+            }
+        }
+        
+        case TOKEN_LPAREN: {
+            parser->current_token = lexer_next_token(parser->lexer);
+            Expression* expr = parse_expression(parser);
+            if (!expr) return NULL;
+            
+            if (!expect(parser, TOKEN_RPAREN, "Expected ')' after expression")) {
+                free_expression(expr);
+                return NULL;
+            }
+            return expr;
+        }
+        
+        case TOKEN_STAR: {
+            Expression* expr = create_expression(AST_STAR);
+            parser->current_token = lexer_next_token(parser->lexer);
+            return expr;
+        }
+        
+        default:
+            parser_set_error(parser, "Expected expression");
+            return NULL;
+    }
 }

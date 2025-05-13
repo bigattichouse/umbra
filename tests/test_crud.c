@@ -97,6 +97,11 @@ static void test_insert(void) {
     assert(result->row_count == 1);
     free_query_result(result);
     
+    // Verify the insert with a SELECT count only first
+    const char* count_sql = "SELECT COUNT(*) FROM users WHERE id = 1";
+    result = execute_and_check(count_sql, true);
+    free_query_result(result);
+    
     // Now verify with full SELECT
     const char* verify_sql = "SELECT * FROM users WHERE id = 1";
     result = execute_and_check(verify_sql, true);

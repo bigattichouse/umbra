@@ -101,8 +101,25 @@ static void generate_result_struct(const SelectStatement* stmt, const TableSchem
                                   char** code, size_t* code_size) {
     char buffer[4096];
     
-    // For SELECT *, use full schema
-    if (stmt->select_list.has_star) {
+    // Check if this is a COUNT(*) query
+    bool is_count_star = false;
+    if (stmt->select_list.count == 1) {
+        Expression* expr = stmt->select_list.expressions[0];
+        if (expr->type == AST_FUNCTION_CALL &&
+            strcasecmp(expr->data.function.function_name, "COUNT") == 0 &&
+            expr->data.function.argument_count == 1 &&
+            expr->data.function.arguments[0]->type == AST_STAR) {
+            is_count_star = true;
+        }
+    }
+    
+    if (is_count_star) {
+        // For COUNT(*), we use int as the result type
+        snprintf(buffer, sizeof(buffer),
+            "/* Result is a single integer for COUNT(*) */\n"
+            "typedef int KernelResult;\n\n");
+    } else if (stmt->select_list.has_star) {
+        // For SELECT *, use full schema
         snprintf(buffer, sizeof(buffer),
             "/* Result structure matches full schema */\n"
             "typedef %s KernelResult;\n\n",
@@ -124,6 +141,18 @@ static void generate_kernel_function(const SelectStatement* stmt, const TableSch
                                     const char* kernel_name, char** code, size_t* code_size) {
     char buffer[8192];
     
+    // Check if this is a COUNT(*) query
+    bool is_count_star = false;
+    if (stmt->select_list.count == 1) {
+        Expression* expr = stmt->select_list.expressions[0];
+        if (expr->type == AST_FUNCTION_CALL &&
+            strcasecmp(expr->data.function.function_name, "COUNT") == 0 &&
+            expr->data.function.argument_count == 1 &&
+            expr->data.function.arguments[0]->type == AST_STAR) {
+            is_count_star = true;
+        }
+    }
+    
     // Function signature
     snprintf(buffer, sizeof(buffer),
         "/**\n"
@@ -134,23 +163,19 @@ static void generate_kernel_function(const SelectStatement* stmt, const TableSch
         " * @param max_results Maximum number of results\n"
         " * @return Number of matching records\n"
         " */\n"
-        "int %s(%s* data, int count, KernelResult* results, int max_results) {\n"
+        "int %s(%s* data, int count, %s results, int max_results) {\n"
         "    int result_count = 0;\n\n",
-        kernel_name, schema->name);
+        kernel_name, schema->name, is_count_star ? "int*" : "KernelResult*");
     
     *code = realloc(*code, *code_size + strlen(buffer) + 1);
     strcat(*code, buffer);
     *code_size += strlen(buffer);
     
-    // In generate_kernel_function, add debug output in the main loop:
+    // Process records loop
     snprintf(buffer, sizeof(buffer),
-        "    for (int i = 0; i < count && result_count < max_results; i++) {\n"
-        "        %s* record = &data[i];\n"
-        "        \n"
-        "#ifdef DEBUG\n"
-        "        fprintf(stderr, \"[KERNEL DEBUG] Record %%d: id=%%d, age=%%d\\n\", i, record->id, record->age);\n"
-        "#endif\n",
-        schema->name);
+        "    for (int i = 0; i < count && %s; i++) {\n"
+        "        %s* record = &data[i];\n",
+        is_count_star ? "true" : "result_count < max_results", schema->name);
     
     *code = realloc(*code, *code_size + strlen(buffer) + 1);
     strcat(*code, buffer);
@@ -161,7 +186,6 @@ static void generate_kernel_function(const SelectStatement* stmt, const TableSch
         char filter_code[4096];
         if (generate_filter_condition(stmt->where_clause, schema, filter_code, sizeof(filter_code)) == 0) {
             snprintf(buffer, sizeof(buffer),
-                "        \n"
                 "        /* WHERE clause */\n"
                 "        if (!(%s)) {\n"
                 "            continue;\n"
@@ -174,21 +198,25 @@ static void generate_kernel_function(const SelectStatement* stmt, const TableSch
         }
     }
     
-    // Generate projection
-    if (stmt->select_list.has_star) {
+    // Generate projection or COUNT(*) logic
+    if (is_count_star) {
+        snprintf(buffer, sizeof(buffer),
+            "        /* COUNT(*) */\n"
+            "        result_count++;\n");
+    } else if (stmt->select_list.has_star) {
         // Copy entire record
         snprintf(buffer, sizeof(buffer),
-            "        \n"
             "        /* Copy entire record */\n"
-            "        results[result_count] = *record;\n");
+            "        results[result_count] = *record;\n"
+            "        result_count++;\n");
     } else {
         // Generate projection code
         char projection_code[4096];
         if (generate_projection_assignment(stmt, schema, projection_code, sizeof(projection_code)) == 0) {
             snprintf(buffer, sizeof(buffer),
-                "        \n"
                 "        /* Project selected columns */\n"
-                "%s",
+                "%s"
+                "        result_count++;\n",
                 projection_code);
         }
     }
@@ -197,19 +225,27 @@ static void generate_kernel_function(const SelectStatement* stmt, const TableSch
     strcat(*code, buffer);
     *code_size += strlen(buffer);
     
-    // End of loop
-    snprintf(buffer, sizeof(buffer),
-        "        result_count++;\n"
-        "    }\n"
-        "    \n"
-        "    return result_count;\n"
-        "}\n");
+    // End of loop and return
+    if (is_count_star) {
+        snprintf(buffer, sizeof(buffer),
+            "    }\n"
+            "    \n"
+            "    /* Return COUNT(*) result */\n"
+            "    *results = result_count;\n"
+            "    return 1; /* Always return 1 row for COUNT(*) */\n"
+            "}\n");
+    } else {
+        snprintf(buffer, sizeof(buffer),
+            "    }\n"
+            "    \n"
+            "    return result_count;\n"
+            "}\n");
+    }
     
     *code = realloc(*code, *code_size + strlen(buffer) + 1);
     strcat(*code, buffer);
     *code_size += strlen(buffer);
 }
-
 /**
  * @brief Generate kernel for SELECT statement
  */
