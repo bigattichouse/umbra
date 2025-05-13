@@ -6,6 +6,7 @@
 #include "parser_common.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 /**
  * @brief Set parser error
@@ -24,12 +25,17 @@ void parser_set_error(Parser* parser, const char* format, ...) {
  */
 bool match(Parser* parser, TokenType type) {
     if (parser->current_token.type == type) {
+        // Free the value before getting the next token
+        if (parser->current_token.value) {
+            free(parser->current_token.value);
+            parser->current_token.value = NULL;
+        }
+        
         parser->current_token = lexer_next_token(parser->lexer);
         return true;
     }
     return false;
 }
-
 /**
  * @brief Expect a specific token type
  */

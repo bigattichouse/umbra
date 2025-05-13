@@ -84,7 +84,12 @@ static GeneratedKernel* generate_update_kernel(const UpdateStatement* stmt,
  * @brief Update a single record
  */
 static int update_record(void* record, const UpdateStatement* stmt, 
-                        const TableSchema* schema) {
+                        const TableSchema* schema, int record_index) {
+    #ifdef DEBUG
+    fprintf(stderr, "[DEBUG] Updating record at index %d, address %p\n", 
+            record_index, record);
+    #endif
+    
     // Apply SET clauses to the record
     for (int i = 0; i < stmt->set_count; i++) {
         const SetClause* set_clause = &stmt->set_clauses[i];
@@ -99,32 +104,45 @@ static int update_record(void* record, const UpdateStatement* stmt,
         }
         
         if (col_idx < 0) {
+            #ifdef DEBUG
+            fprintf(stderr, "[DEBUG] Column '%s' not found in schema\n", 
+                    set_clause->column_name);
+            #endif
             continue;
         }
         
-        // Apply update based on type
-        // This is a simplified version - actual implementation would evaluate expressions
+        #ifdef DEBUG
+        fprintf(stderr, "[DEBUG] Updating column %s (index %d) type=%d\n", 
+                set_clause->column_name, col_idx, schema->columns[col_idx].type);
+        #endif
+        
+        // For now, just log that we'd update this field but don't actually do it
+        // This will help us diagnose where the crash is occurring
         if (set_clause->value->type == AST_LITERAL) {
-            // For demonstration, just copy literal values
-            // In practice, you'd need proper type conversion
             const Literal* lit = &set_clause->value->data.literal;
             
-            // Get field offset in struct (simplified - would need proper struct layout)
-            void* field_ptr = (char*)record + col_idx * 256; // Placeholder offset
+            #ifdef DEBUG
+            fprintf(stderr, "[DEBUG] Would update %s to ", set_clause->column_name);
             
             switch (schema->columns[col_idx].type) {
                 case TYPE_INT:
-                    *(int*)field_ptr = lit->value.int_value;
+                    fprintf(stderr, "int value %d\n", lit->value.int_value);
+                    break;
+                case TYPE_FLOAT:
+                    fprintf(stderr, "float value %f\n", lit->value.float_value);
                     break;
                 case TYPE_VARCHAR:
                 case TYPE_TEXT:
-                    strncpy((char*)field_ptr, lit->value.string_value, 
-                           schema->columns[col_idx].length);
+                    fprintf(stderr, "string value '%s'\n", lit->value.string_value);
                     break;
-                // Other types...
+                case TYPE_BOOLEAN:
+                    fprintf(stderr, "boolean value %s\n", lit->value.bool_value ? "true" : "false");
+                    break;
                 default:
+                    fprintf(stderr, "unknown type\n");
                     break;
             }
+            #endif
         }
     }
     
@@ -251,10 +269,15 @@ UpdateResult* execute_update(const UpdateStatement* stmt, const char* base_dir) 
             affected_pages[page_num] = true;
             total_updated += match_count;
             
-            // Update the matching records
-            for (int i = 0; i < match_count; i++) {
-                update_record(((void**)matches)[i], stmt, schema);
-            }
+            
+                for (int i = 0; i < match_count; i++) {
+                    #ifdef DEBUG
+                    fprintf(stderr, "[DEBUG] Found matching record %d/%d at address %p\n", 
+                            i+1, match_count, ((void**)matches)[i]);
+                    #endif
+                    
+                    update_record(((void**)matches)[i], stmt, schema, i);
+                } 
             
             // TODO: Write updated records back to page
             // This requires regenerating the page data file

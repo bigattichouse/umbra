@@ -326,38 +326,38 @@ Token lexer_peek_token(Lexer* lexer) {
     int saved_line = lexer->line;
     int saved_column = lexer->column;
     
-    // Save token with a deep copy of the value
+    // Save current token value
     char* saved_value = lexer->current_token.value ? strdup(lexer->current_token.value) : NULL;
     TokenType saved_type = lexer->current_token.type;
     int saved_line_token = lexer->current_token.line;
     int saved_column_token = lexer->current_token.column;
     
-    // Set value to NULL to prevent it from being freed
+    // Temporarily set current_token.value to NULL to prevent it from being freed
     lexer->current_token.value = NULL;
     
     // Get next token
     Token next_token = lexer_next_token(lexer);
-    
-    // Make a deep copy of the next token value
-    char* next_value = next_token.value ? strdup(next_token.value) : NULL;
-    if (next_token.value) {
-        free(next_token.value);
-    }
-    next_token.value = next_value;
     
     // Restore state
     lexer->position = saved_position;
     lexer->line = saved_line;
     lexer->column = saved_column;
     
-    // Restore token with the deep copy of the value
+    // Clean up current token if needed
+    if (lexer->current_token.value) {
+        free(lexer->current_token.value);
+    }
+    
+    // Restore original token
     lexer->current_token.type = saved_type;
     lexer->current_token.line = saved_line_token;
     lexer->current_token.column = saved_column_token;
-    lexer->current_token.value = saved_value;
+    lexer->current_token.value = saved_value;  // Restored to original duplicated value
     
     return next_token;
 }
+
+
 const char* token_type_to_string(TokenType type) {
     if (type >= 0 && type < sizeof(token_type_names) / sizeof(token_type_names[0])) {
         return token_type_names[type];
@@ -366,7 +366,7 @@ const char* token_type_to_string(TokenType type) {
 }
 
 void token_free(Token* token) {
-    if (token->value) {
+    if (token && token->value) {
         free(token->value);
         token->value = NULL;
     }

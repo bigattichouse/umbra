@@ -32,8 +32,9 @@ void parser_init(Parser* parser, Lexer* lexer) {
  * @brief Free parser resources
  */
 void parser_free(Parser* parser) {
-    // Parser doesn't own the lexer, so nothing to free
-    (void)parser;
+    if (parser) { 
+        token_free(&parser->current_token); 
+    }
 }
 
 /**
