@@ -32,4 +32,6 @@ Expression* parse_expression(Parser* parser);
 
 void consume_token(Parser* parser);
 
+void cleanup_parser_and_lexer(Parser* parser, Lexer* lexer);
+
 #endif /* UMBRA_PARSER_COMMON_H */

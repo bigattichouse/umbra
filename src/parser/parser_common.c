@@ -27,6 +27,18 @@ void consume_token(Parser* parser) {
 }
 
 /**
+ * @brief Clean up parser and lexer resources in the correct order
+ */
+void cleanup_parser_and_lexer(Parser* parser, Lexer* lexer) {
+    if (lexer) {
+        lexer_free(lexer);
+    }
+    if (parser) {
+        parser_free(parser);
+    }
+}
+
+/**
  * @brief Check if current token matches expected type
  */
 bool match(Parser* parser, TokenType type) {

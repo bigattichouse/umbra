@@ -12,6 +12,7 @@
 #include "query_executor.h"
 #include "select_executor.h"
 #include "create_table_executor.h"
+#include "../parser/parser_common.h"
 #include "../parser/lexer.h"
 #include "../parser/select_parser.h"
 #include "../parser/insert_parser.h"
@@ -104,8 +105,8 @@ static ASTNode* parse_query(const char* sql, const char* base_dir,
         if (!create_result->success) {
             set_query_error(result, "CREATE TABLE failed: %s", create_result->error_message);
             free_create_table_result(create_result);
-            parser_free(&parser);
             lexer_free(&lexer);
+            parser_free(&parser);
             return NULL;
         }
         
@@ -115,8 +116,7 @@ static ASTNode* parse_query(const char* sql, const char* base_dir,
         result->error_message = strdup("Table created successfully");
         
         free_create_table_result(create_result);
-        parser_free(&parser);
-        lexer_free(&lexer);
+        cleanup_parser_and_lexer(&parser, &lexer);
         return NULL;  // No AST node needed for CREATE TABLE
     } else if (strncasecmp(sql, "CREATE INDEX", 12) == 0) {
     // Handle CREATE INDEX statement
@@ -125,8 +125,7 @@ static ASTNode* parse_query(const char* sql, const char* base_dir,
     if (!index_result->success) {
         set_query_error(result, "CREATE INDEX failed: %s", index_result->error_message);
         free_create_index_result(index_result);
-        parser_free(&parser);
-        lexer_free(&lexer);
+        cleanup_parser_and_lexer(&parser, &lexer);
         return NULL;
     }
     
@@ -301,8 +300,7 @@ static ASTNode* parse_query(const char* sql, const char* base_dir,
         schema = NULL;
     } else {
         set_query_error(result, "Unsupported SQL statement");
-        parser_free(&parser);
-        lexer_free(&lexer);
+        cleanup_parser_and_lexer(&parser, &lexer);
         return NULL;
     }
     
