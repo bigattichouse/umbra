@@ -461,12 +461,12 @@ TableSchema* parse_create_table(const char* create_statement) {
         }
     }
 
-    // Add UUID column to schema
+    // Add UUID column to schema as the first column
     schema->column_count++;
-    schema->columns = realloc(schema->columns, schema->column_count * sizeof(ColumnDefinition));
+    ColumnDefinition* new_columns = malloc(schema->column_count * sizeof(ColumnDefinition));
     
-    // Initialize UUID column
-    ColumnDefinition* uuid_col = &schema->columns[schema->column_count - 1];
+    // Initialize UUID column as the first column
+    ColumnDefinition* uuid_col = &new_columns[0];
     strncpy(uuid_col->name, "_uuid", sizeof(uuid_col->name) - 1);
     uuid_col->name[sizeof(uuid_col->name) - 1] = '\0';
     uuid_col->type = TYPE_VARCHAR;
@@ -474,6 +474,22 @@ TableSchema* parse_create_table(const char* create_statement) {
     uuid_col->nullable = false;
     uuid_col->has_default = false;
     uuid_col->is_primary_key = false;
+    
+    // Copy existing columns after the UUID column
+    for (int i = 0; i < schema->column_count - 1; i++) {
+        new_columns[i + 1] = schema->columns[i];
+    }
+
+    // Replace old columns array with new one
+    free(schema->columns);
+    schema->columns = new_columns;
+    
+    // After adding the UUID column, adjust primary key indices
+    if (schema->primary_key_column_count > 0) {
+        for (int i = 0; i < schema->primary_key_column_count; i++) {
+            schema->primary_key_columns[i]++;  // Increment because all columns moved down by 1
+        }
+    }
     
     free_tokenizer(&tokenizer);
     DEBUG_PRINT("parse_create_table: completed successfully\n");

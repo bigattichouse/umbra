@@ -13,6 +13,7 @@
 #include "../schema/metadata.h"
 #include "../schema/type_system.h"
 #include "../loader/page_manager.h"
+#include "../loader/record_access.h"
 #include "../pages/page_generator.h"
 #include "../pages/page_splitter.h"
 #include "../query/query_executor.h"
@@ -78,23 +79,6 @@ static char* evaluate_literal(const Expression* expr) {
 }
 
 /**
- * @brief Find or create the UUID column index in schema
- */
-static int get_uuid_column_index(TableSchema* schema) {
-    // First, check if a _uuid column already exists
-    for (int i = 0; i < schema->column_count; i++) {
-        if (strcmp(schema->columns[i].name, "_uuid") == 0) {
-            return i;
-        }
-    }
-    
-    // If not, assume it's the last column (added by schema_parser.c)
-    // This will be true if the schema creation code adds the UUID field
-    // automatically as we discussed
-    return schema->column_count - 1;
-}
-
-/**
  * @brief Execute an INSERT statement
  */
 InsertResult* execute_insert(const InsertStatement* stmt, const char* base_dir) {
@@ -120,7 +104,7 @@ InsertResult* execute_insert(const InsertStatement* stmt, const char* base_dir) 
     }
     
     // Find UUID column index
-    int uuid_idx = get_uuid_column_index(schema);
+    int uuid_idx = _UUID_COLUMN_INDEX;
     
     // Prepare values for insertion
     const char** values = malloc(schema->column_count * sizeof(char*));
