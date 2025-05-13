@@ -465,16 +465,21 @@ void* get_field_from_record(void* record, const TableSchema* schema, const char*
 char* get_uuid_from_record(void* record, const TableSchema* schema) {
     if (!record || !schema) {
         return NULL;
-    } 
+    }
     
-    // Access the UUID field
-    char* uuid_ptr = (char*)record; //is first field
+    // Use the proper field access function to get the UUID field
+    // _UUID_COLUMN_INDEX is defined as 0 in record_access.c
+    void* uuid_field = get_field_by_index(record, schema, _UUID_COLUMN_INDEX);
+    if (!uuid_field) {
+        return NULL;
+    }
     
     // Validate the UUID string exists and isn't empty
-    if (!uuid_ptr || *uuid_ptr == '\0') {
+    const char* uuid_str = (const char*)uuid_field;
+    if (!uuid_str || *uuid_str == '\0') {
         return NULL;
     }
     
     // Return a copy of the UUID
-    return strdup(uuid_ptr);
+    return strdup(uuid_str);
 }

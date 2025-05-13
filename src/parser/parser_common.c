@@ -25,7 +25,7 @@ void parser_set_error(Parser* parser, const char* format, ...) {
  */
 bool match(Parser* parser, TokenType type) {
     if (parser->current_token.type == type) {
-        // Free the value before getting the next token
+        // Use token_free to free the current token
         if (parser->current_token.value) {
             free(parser->current_token.value);
             parser->current_token.value = NULL;
@@ -39,19 +39,14 @@ bool match(Parser* parser, TokenType type) {
         parser->current_token.line = next_token.line;
         parser->current_token.column = next_token.column;
         
-        // Handle the value field carefully to avoid leaks
-        if (next_token.value) {
-            // Create a deep copy of the value
-            parser->current_token.value = strdup(next_token.value);
-            // No need to free next_token.value as lexer manages its own memory
-        } else {
-            parser->current_token.value = NULL;
-        }
+        // Take ownership of the token value instead of duplicating
+        parser->current_token.value = next_token.value;
         
         return true;
     }
     return false;
 }
+
 /**
  * @brief Expect a specific token type
  */
