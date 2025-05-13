@@ -54,9 +54,11 @@ sudo apt install git              # For version control and data distribution
 
 After building, you can run the database using:
 ```bash
+make
 ./build/bin/umbra
 ```
 You can then do some basic CREATE TABLE from SQL, SELECTS, INSERTS, UPDATES, DELETES, and CREATE INDEX calls.
+Then you can go into the test database subdirectory and view the source and compiled binaries.
 
 ## Key Features
 
