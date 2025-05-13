@@ -21,6 +21,7 @@
 #include "../pages/page_generator.h"
 #include "../pages/page_splitter.h"
 #include "../query/query_executor.h" 
+#include "../util/debug.h"
 
 /**
  * @brief Create update result
@@ -83,11 +84,11 @@ static GeneratedKernel* generate_update_kernel(const UpdateStatement* stmt,
 /**
  * @brief Update a single record
  */
-static int update_record(void* record, const UpdateStatement* stmt, 
-                        const TableSchema* schema, int record_index) {
+static int update_record(void* /*record*/, const UpdateStatement* stmt, 
+                        const TableSchema* schema, int /*record_index*/) {
     #ifdef DEBUG
-    fprintf(stderr, "[DEBUG] Updating record at index %d, address %p\n", 
-            record_index, record);
+    DEBUG("Updating record at index %d, address %p\n",record_index, record);
+
     #endif
     
     // Apply SET clauses to the record
@@ -105,14 +106,14 @@ static int update_record(void* record, const UpdateStatement* stmt,
         
         if (col_idx < 0) {
             #ifdef DEBUG
-            fprintf(stderr, "[DEBUG] Column '%s' not found in schema\n", 
-                    set_clause->column_name);
+            DEBUG("Column '%s' not found in schema\n",                     set_clause->column_name);
+
             #endif
             continue;
         }
         
         #ifdef DEBUG
-        fprintf(stderr, "[DEBUG] Updating column %s (index %d) type=%d\n", 
+        DEBUG("Updating column %s (index %d) type=%d\n", 
                 set_clause->column_name, col_idx, schema->columns[col_idx].type);
         #endif
         
@@ -122,7 +123,7 @@ static int update_record(void* record, const UpdateStatement* stmt,
             const Literal* lit = &set_clause->value->data.literal;
             
             #ifdef DEBUG
-            fprintf(stderr, "[DEBUG] Would update %s to ", set_clause->column_name);
+            DEBUG("Would update %s to ", set_clause->column_name);
             
             switch (schema->columns[col_idx].type) {
                 case TYPE_INT:
@@ -272,7 +273,7 @@ UpdateResult* execute_update(const UpdateStatement* stmt, const char* base_dir) 
             
                 for (int i = 0; i < match_count; i++) {
                     #ifdef DEBUG
-                    fprintf(stderr, "[DEBUG] Found matching record %d/%d at address %p\n", 
+                    DEBUG("Found matching record %d/%d at address %p\n", 
                             i+1, match_count, ((void**)matches)[i]);
                     #endif
                     

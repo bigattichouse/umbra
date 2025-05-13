@@ -14,6 +14,7 @@
 #include "filter_generator.h"
 #include "projection_generator.h"
 #include "../schema/directory_manager.h"
+#include "../util/debug.h"
 
 /**
  * @brief Generate a unique kernel name
@@ -281,7 +282,7 @@ GeneratedKernel* generate_select_kernel(const SelectStatement* stmt,
     generate_kernel_function(stmt, schema, kernel_name, &kernel->code, &code_size);
     
     #ifdef DEBUG
-    fprintf(stderr, "[DEBUG] Generated kernel code:\n%s\n", kernel->code);
+    DEBUG("Generated kernel code:\n%s", kernel->code);
     #endif
     
     return kernel;
@@ -348,7 +349,7 @@ int write_kernel_source(const GeneratedKernel* kernel, const char* base_dir,
     fprintf(file, "%s", kernel->code);
     
     // Debug: Print the generated kernel code
-    fprintf(stderr, "[DEBUG] Generated kernel code:\n%s\n", kernel->code);
+    DEBUG("Generated kernel code:\n%s", kernel->code);
     
     fclose(file);
     return 0;

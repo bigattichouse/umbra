@@ -12,13 +12,8 @@
 #include <errno.h>       // Add this for errno
 #include "schema_parser.h"
 #include "type_system.h"   // Add explicit include for type system functions
-
-#ifdef DEBUG
-#define DEBUG_PRINT(...) fprintf(stderr, "[DEBUG] " __VA_ARGS__)
-#else
-#define DEBUG_PRINT(...) do {} while(0)
-#endif
-
+#include "../util/debug.h"  
+ 
 /**
  * @struct Token
  * @brief Represents a token during parsing
@@ -51,7 +46,7 @@ typedef struct {
  * @brief Initialize a tokenizer with input
  */
 static void init_tokenizer(Tokenizer* tokenizer, const char* input) {
-    DEBUG_PRINT("init_tokenizer: input='%s'\n", input);
+    DEBUG("init_tokenizer: input='%s'\n", input);
     tokenizer->input = input;
     tokenizer->position = 0;
     tokenizer->length = strlen(input);
@@ -63,7 +58,7 @@ static void init_tokenizer(Tokenizer* tokenizer, const char* input) {
  * @brief Free tokenizer resources
  */
 static void free_tokenizer(Tokenizer* tokenizer) {
-    DEBUG_PRINT("free_tokenizer\n");
+    DEBUG("free_tokenizer\n");
     free(tokenizer->current_token.value);
     tokenizer->current_token.value = NULL;
 }
@@ -90,7 +85,7 @@ static void next_token(Tokenizer* tokenizer) {
     
     if (tokenizer->position >= tokenizer->length) {
         tokenizer->current_token.type = TOKEN_EOF;
-        DEBUG_PRINT("next_token: EOF\n");
+        DEBUG("next_token: EOF\n");
         return;
     }
     
@@ -102,7 +97,7 @@ static void next_token(Tokenizer* tokenizer) {
         tokenizer->current_token.value[1] = '\0';
         tokenizer->current_token.type = TOKEN_SYMBOL;
         tokenizer->position++;
-        DEBUG_PRINT("next_token: symbol='%s'\n", tokenizer->current_token.value);
+        DEBUG("next_token: symbol='%s'\n", tokenizer->current_token.value);
         return;
     }
     
@@ -145,7 +140,7 @@ static void next_token(Tokenizer* tokenizer) {
         }
         
         free(upper);
-        DEBUG_PRINT("next_token: %s='%s'\n", 
+        DEBUG("next_token: %s='%s'\n", 
                    tokenizer->current_token.type == TOKEN_KEYWORD ? "keyword" : "identifier",
                    tokenizer->current_token.value);
         return;
@@ -168,7 +163,7 @@ static void next_token(Tokenizer* tokenizer) {
         strncpy(tokenizer->current_token.value, tokenizer->input + start, length);
         tokenizer->current_token.value[length] = '\0';
         tokenizer->current_token.type = TOKEN_NUMBER;
-        DEBUG_PRINT("next_token: number='%s'\n", tokenizer->current_token.value);
+        DEBUG("next_token: number='%s'\n", tokenizer->current_token.value);
         return;
     }
     
@@ -178,7 +173,7 @@ static void next_token(Tokenizer* tokenizer) {
     tokenizer->current_token.value[1] = '\0';
     tokenizer->current_token.type = TOKEN_SYMBOL;
     tokenizer->position++;
-    DEBUG_PRINT("next_token: unknown symbol='%s'\n", tokenizer->current_token.value);
+    DEBUG("next_token: unknown symbol='%s'\n", tokenizer->current_token.value);
 }
 
 /**
@@ -187,7 +182,7 @@ static void next_token(Tokenizer* tokenizer) {
 static bool match(Tokenizer* tokenizer, const char* expected) {
     if (tokenizer->current_token.value && 
         strcasecmp(tokenizer->current_token.value, expected) == 0) {
-        DEBUG_PRINT("match: matched '%s'\n", expected);
+        DEBUG("match: matched '%s'\n", expected);
         next_token(tokenizer);
         return true;
     }
@@ -214,7 +209,7 @@ static DataType parse_data_type(Tokenizer* tokenizer, int* length) {
     *length = 0;
     
     if (tokenizer->current_token.value == NULL) {
-        DEBUG_PRINT("parse_data_type: no token\n");
+        DEBUG("parse_data_type: no token\n");
         return TYPE_UNKNOWN;
     }
     
@@ -225,7 +220,7 @@ static DataType parse_data_type(Tokenizer* tokenizer, int* length) {
     
     DataType type = TYPE_UNKNOWN;
     
-    DEBUG_PRINT("parse_data_type: checking type '%s'\n", upper);
+    DEBUG("parse_data_type: checking type '%s'\n", upper);
     
     if (strcmp(upper, "INT") == 0) {
         type = TYPE_INT;
@@ -244,7 +239,7 @@ static DataType parse_data_type(Tokenizer* tokenizer, int* length) {
     free(upper);
     
     if (type == TYPE_UNKNOWN) {
-        DEBUG_PRINT("parse_data_type: unknown type\n");
+        DEBUG("parse_data_type: unknown type\n");
         return type;
     }
     
@@ -256,14 +251,14 @@ static DataType parse_data_type(Tokenizer* tokenizer, int* length) {
             // Parse length
             if (tokenizer->current_token.type == TOKEN_NUMBER) {
                 *length = atoi(tokenizer->current_token.value);
-                DEBUG_PRINT("parse_data_type: VARCHAR length=%d\n", *length);
+                DEBUG("parse_data_type: VARCHAR length=%d\n", *length);
                 next_token(tokenizer);
                 expect(tokenizer, ")");
             }
         }
     }
     
-    DEBUG_PRINT("parse_data_type: type=%d, length=%d\n", type, *length);
+    DEBUG("parse_data_type: type=%d, length=%d\n", type, *length);
     return type;
 }
 
@@ -271,7 +266,7 @@ static DataType parse_data_type(Tokenizer* tokenizer, int* length) {
  * @brief Parse a column definition
  */
 static ColumnDefinition parse_column_definition(Tokenizer* tokenizer) {
-    DEBUG_PRINT("parse_column_definition: start\n");
+    DEBUG("parse_column_definition: start\n");
     ColumnDefinition column;
     memset(&column, 0, sizeof(ColumnDefinition));
     
@@ -279,7 +274,7 @@ static ColumnDefinition parse_column_definition(Tokenizer* tokenizer) {
     if (tokenizer->current_token.type == TOKEN_IDENTIFIER) {
         strncpy(column.name, tokenizer->current_token.value, sizeof(column.name) - 1);
         column.name[sizeof(column.name) - 1] = '\0';
-        DEBUG_PRINT("parse_column_definition: name='%s'\n", column.name);
+        DEBUG("parse_column_definition: name='%s'\n", column.name);
         next_token(tokenizer);
     } else {
         fprintf(stderr, "Expected column name\n");
@@ -298,13 +293,13 @@ static ColumnDefinition parse_column_definition(Tokenizer* tokenizer) {
             upper[i] = toupper(upper[i]);
         }
         
-        DEBUG_PRINT("parse_column_definition: checking constraint '%s'\n", upper);
+        DEBUG("parse_column_definition: checking constraint '%s'\n", upper);
         
         if (strcmp(upper, "NOT") == 0) {
             next_token(tokenizer);
             if (match(tokenizer, "NULL")) {
                 column.nullable = false;
-                DEBUG_PRINT("parse_column_definition: NOT NULL\n");
+                DEBUG("parse_column_definition: NOT NULL\n");
             }
         } else if (strcmp(upper, "DEFAULT") == 0) {
             next_token(tokenizer);
@@ -314,14 +309,14 @@ static ColumnDefinition parse_column_definition(Tokenizer* tokenizer) {
                         sizeof(column.default_value) - 1);
                 column.default_value[sizeof(column.default_value) - 1] = '\0';
                 column.has_default = true;
-                DEBUG_PRINT("parse_column_definition: DEFAULT '%s'\n", column.default_value);
+                DEBUG("parse_column_definition: DEFAULT '%s'\n", column.default_value);
                 next_token(tokenizer);
             }
         } else if (strcmp(upper, "PRIMARY") == 0) {
             next_token(tokenizer);
             if (match(tokenizer, "KEY")) {
                 column.is_primary_key = true;
-                DEBUG_PRINT("parse_column_definition: PRIMARY KEY\n");
+                DEBUG("parse_column_definition: PRIMARY KEY\n");
             }
         } else {
             free(upper);
@@ -331,7 +326,7 @@ static ColumnDefinition parse_column_definition(Tokenizer* tokenizer) {
         free(upper);
     }
     
-    DEBUG_PRINT("parse_column_definition: done\n");
+    DEBUG("parse_column_definition: done\n");
     return column;
 }
 
@@ -339,9 +334,9 @@ static ColumnDefinition parse_column_definition(Tokenizer* tokenizer) {
  * @brief Parse the CREATE TABLE statement
  */
 TableSchema* parse_create_table(const char* create_statement) {
-    DEBUG_PRINT("parse_create_table: start\n");
+    DEBUG("parse_create_table: start\n");
     if (create_statement == NULL) {
-        DEBUG_PRINT("parse_create_table: NULL statement\n");
+        DEBUG("parse_create_table: NULL statement\n");
         return NULL;
     }
     
@@ -369,7 +364,7 @@ TableSchema* parse_create_table(const char* create_statement) {
     if (tokenizer.current_token.type == TOKEN_IDENTIFIER) {
         strncpy(schema->name, tokenizer.current_token.value, sizeof(schema->name) - 1);
         schema->name[sizeof(schema->name) - 1] = '\0';
-        DEBUG_PRINT("parse_create_table: table name='%s'\n", schema->name);
+        DEBUG("parse_create_table: table name='%s'\n", schema->name);
         next_token(&tokenizer);
     } else {
         fprintf(stderr, "Expected table name\n");
@@ -425,7 +420,7 @@ TableSchema* parse_create_table(const char* create_statement) {
         // Parse column definition
         schema->columns[schema->column_count] = parse_column_definition(&tokenizer);
         schema->column_count++;
-        DEBUG_PRINT("parse_create_table: parsed column %d\n", schema->column_count);
+        DEBUG("parse_create_table: parsed column %d\n", schema->column_count);
     }
     
     // Expect closing parenthesis
@@ -492,7 +487,7 @@ TableSchema* parse_create_table(const char* create_statement) {
     }
     
     free_tokenizer(&tokenizer);
-    DEBUG_PRINT("parse_create_table: completed successfully\n");
+    DEBUG("parse_create_table: completed successfully\n");
     return schema;
 }
 
@@ -500,22 +495,22 @@ TableSchema* parse_create_table(const char* create_statement) {
  * @brief Free a previously allocated table schema
  */
 void free_table_schema(TableSchema* schema) {
-    DEBUG_PRINT("free_table_schema: start\n");
+    DEBUG("free_table_schema: start\n");
     if (schema) {
         free(schema->columns);
         free(schema->primary_key_columns);
         free(schema);
     }
-    DEBUG_PRINT("free_table_schema: done\n");
+    DEBUG("free_table_schema: done\n");
 }
 
 /**
  * @brief Check if a schema is valid
  */
 bool validate_schema(const TableSchema* schema) {
-    DEBUG_PRINT("validate_schema: start\n");
+    DEBUG("validate_schema: start\n");
     if (!schema || schema->column_count <= 0) {
-        DEBUG_PRINT("validate_schema: invalid schema or no columns\n");
+        DEBUG("validate_schema: invalid schema or no columns\n");
         return false;
     }
     
@@ -537,7 +532,7 @@ bool validate_schema(const TableSchema* schema) {
         }
     }
     
-    DEBUG_PRINT("validate_schema: schema is valid\n");
+    DEBUG("validate_schema: schema is valid\n");
     return true;
 }
 
@@ -659,7 +654,7 @@ TableSchema* load_schema_metadata(const char* table_name, const char* base_dir) 
     memset(schema, 0, sizeof(TableSchema));
     
     #ifdef DEBUG
-    fprintf(stderr, "[DEBUG] JSON content:\n%s\n", content);
+    DEBUG("JSON content:\n%s", content);
     #endif
     
     // Better JSON parsing with bounds checking
@@ -685,7 +680,7 @@ TableSchema* load_schema_metadata(const char* table_name, const char* base_dir) 
             if (in_columns_array && brace_depth == 2) {
                 column_idx++;
                 #ifdef DEBUG
-                fprintf(stderr, "[DEBUG] Starting column %d (brace_depth=%d)\n", column_idx, brace_depth);
+                DEBUG("Starting column %d (brace_depth=%d)", column_idx, brace_depth);
                 #endif
             }
             ptr++;
@@ -701,7 +696,7 @@ TableSchema* load_schema_metadata(const char* table_name, const char* base_dir) 
                 in_columns_array = false;
                 column_idx = -1;
                 #ifdef DEBUG
-                fprintf(stderr, "[DEBUG] Exiting columns array\n");
+                DEBUG("Exiting columns array");
                 #endif
             }
             if (in_primary_keys) in_primary_keys = false;
@@ -727,7 +722,7 @@ TableSchema* load_schema_metadata(const char* table_name, const char* base_dir) 
             
             #ifdef DEBUG
             if (in_columns_array && column_idx >= 0) {
-                fprintf(stderr, "[DEBUG] Parsing key '%s' for column %d\n", key, column_idx);
+                DEBUG("Parsing key '%s' for column %d", key, column_idx);
             }
             #endif
             
@@ -753,7 +748,7 @@ TableSchema* load_schema_metadata(const char* table_name, const char* base_dir) 
                 in_columns_array = true;
                 column_idx = -1;
                 #ifdef DEBUG
-                fprintf(stderr, "[DEBUG] Entering columns array\n");
+                DEBUG("Entering columns array");
                 #endif
             } else if (strcmp(key, "primary_key_column_count") == 0) {
                 schema->primary_key_column_count = atoi(ptr);
@@ -778,7 +773,7 @@ TableSchema* load_schema_metadata(const char* table_name, const char* base_dir) 
                         col->name[i] = '\0';
                         if (ptr < end && *ptr == '"') ptr++; // Skip closing quote
                         #ifdef DEBUG
-                        fprintf(stderr, "[DEBUG] Set column %d name to '%s'\n", column_idx, col->name);
+                        DEBUG("Set column %d name to '%s'", column_idx, col->name);
                         #endif
                     }
                 } else if (strcmp(key, "type") == 0) {
@@ -794,7 +789,7 @@ TableSchema* load_schema_metadata(const char* table_name, const char* base_dir) 
                         col->type = get_type_from_name(type_str);
                         if (ptr < end && *ptr == '"') ptr++; // Skip closing quote
                         #ifdef DEBUG
-                        fprintf(stderr, "[DEBUG] Set column %d type to %d (%s)\n", column_idx, col->type, type_str);
+                        DEBUG("Set column %d type to %d (%s)", column_idx, col->type, type_str);
                         #endif
                     }
                 } else if (strcmp(key, "length") == 0) {
@@ -876,9 +871,9 @@ TableSchema* load_schema_metadata(const char* table_name, const char* base_dir) 
     }
     
     #ifdef DEBUG
-    fprintf(stderr, "[DEBUG] Parsed schema: name=%s, columns=%d\n", schema->name, schema->column_count);
+    DEBUG("Parsed schema: name=%s, columns=%d", schema->name, schema->column_count);
     for (int i = 0; i < schema->column_count; i++) {
-        fprintf(stderr, "[DEBUG] Column %d: name=%s, type=%d\n", i, schema->columns[i].name, schema->columns[i].type);
+        DEBUG("Column %d: name=%s, type=%d", i, schema->columns[i].name, schema->columns[i].type);
     }
     #endif
     

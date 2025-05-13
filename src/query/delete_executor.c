@@ -21,6 +21,7 @@
 #include "../pages/page_generator.h"
 #include "../pages/page_splitter.h"
 #include "../query/query_executor.h"
+#include "../util/debug.h"
 
 /**
  * @brief Create delete result
@@ -103,7 +104,7 @@ static int delete_records_from_file(const char* data_path, const TableSchema* sc
         
         if (!match_uuids[i]) {
             #ifdef DEBUG
-            fprintf(stderr, "[DEBUG] Failed to get UUID for record %d\n", i);
+            DEBUG("Failed to get UUID for record %d", i);
             #endif
         }
     }
@@ -229,8 +230,9 @@ static int delete_records_from_file(const char* data_path, const TableSchema* sc
                 record_lines[j].should_delete = true;
                 marked_for_deletion++;
                 #ifdef DEBUG
-                fprintf(stderr, "[DEBUG] Marked record at line %d for deletion (UUID: %s)\n", 
+                DEBUG(" Marked record at line %d for deletion (UUID: %s)\n", 
                         line_idx, match_uuids[i]);
+
                 #endif
                 break;  // Found this UUID, move to next
             }
@@ -447,7 +449,7 @@ DeleteResult* execute_delete(const DeleteStatement* stmt, const char* base_dir) 
                 &loaded_kernel, first_record, page_records, kernel_results, page_records);
             
             #ifdef DEBUG
-            fprintf(stderr, "[DEBUG] Kernel found %d matching records in page %d\n", 
+            DEBUG("Kernel found %d matching records in page %d\n", 
                     kernel_result_count, page_num);
             #endif
             
@@ -470,7 +472,7 @@ DeleteResult* execute_delete(const DeleteStatement* stmt, const char* base_dir) 
                     affected_pages[page_num] = true;
                     total_deleted += deleted;
                     #ifdef DEBUG
-                    fprintf(stderr, "[DEBUG] Deleted %d records from page %d\n", deleted, page_num);
+                    DEBUG("Deleted %d records from page %d", deleted, page_num);
                     #endif
                 }
             }
@@ -498,7 +500,7 @@ DeleteResult* execute_delete(const DeleteStatement* stmt, const char* base_dir) 
     for (int i = 0; i < page_count; i++) {
         if (affected_pages[i]) {
             #ifdef DEBUG
-            fprintf(stderr, "[DEBUG] Recompiling page %d\n", i);
+            DEBUG("Recompiling page %d", i);
             #endif
             if (recompile_data_page(schema, base_dir, i) != 0) {
                 fprintf(stderr, "Warning: Failed to recompile page %d\n", i);

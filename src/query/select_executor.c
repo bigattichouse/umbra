@@ -17,6 +17,7 @@
 #include "../loader/page_manager.h"
 #include "../loader/record_access.h"
 #include "../query/query_executor.h"  
+#include "../util/debug.h"
 
 /**
  * @brief Get maximum result size estimate
@@ -296,7 +297,7 @@ int execute_select(const SelectStatement* stmt, const char* base_dir, QueryResul
                 int results_from_page = execute_kernel(&loaded_kernel, first_record, page_count,
                                                       results_pos, max_results - total_results);
                 
-                fprintf(stderr, "[DEBUG] Page %d returned %d results\n", page_num, results_from_page);
+                DEBUG("Page %d returned %d results", page_num, results_from_page);
                 
                 if (results_from_page > 0) {
                     total_results += results_from_page;
@@ -306,7 +307,7 @@ int execute_select(const SelectStatement* stmt, const char* base_dir, QueryResul
             unload_page(&page);
         }
         
-        fprintf(stderr, "[DEBUG] Total results: %d\n", total_results);
+        DEBUG("Total results: %d", total_results);
         
         // Now create an array of pointers to each record in the raw buffer
         void** row_pointers = malloc(total_results * sizeof(void*));

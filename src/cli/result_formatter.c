@@ -8,6 +8,7 @@
 #include <string.h>
 #include "result_formatter.h"
 #include "../loader/record_access.h"
+#include "../util/debug.h"
 
 /**
  * @brief Get string representation of a field value
@@ -30,7 +31,7 @@ void get_field_string(const QueryResult* result, void* row, int col_idx,
     }
     
     #ifdef DEBUG
-    fprintf(stderr, "[DEBUG] get_field_string: row=%p, col_idx=%d\n", row, col_idx);
+    DEBUG("get_field_string: row=%p, col_idx=%d", row, col_idx);
     #endif
     
     const ColumnDefinition* col = &result->result_schema->columns[col_idx];
@@ -54,7 +55,7 @@ void get_field_string(const QueryResult* result, void* row, int col_idx,
             field_value = fields[col_idx];
         } else {
             #ifdef DEBUG
-            fprintf(stderr, "[DEBUG] Invalid column index for pointer array: %d\n", col_idx);
+            DEBUG("Invalid column index for pointer array: %d", col_idx);
             #endif
         }
     } else {
@@ -68,7 +69,7 @@ void get_field_string(const QueryResult* result, void* row, int col_idx,
         
         #ifdef DEBUG
         if (!field_value) {
-            fprintf(stderr, "[DEBUG] Failed to get field value for column %d (%s)\n", 
+            DEBUG("Failed to get field value for column %d (%s)\n", 
                     col_idx, col->name);
         }
         #endif

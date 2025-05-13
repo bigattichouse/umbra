@@ -10,6 +10,7 @@
 #include "record_access.h"
 #include "error_handler.h"
 #include "../schema/type_system.h"
+#include "../util/debug.h"  
 
 //_UUID is always first
 const int _UUID_COLUMN_INDEX = 0; 
@@ -343,8 +344,7 @@ int find_uuid_column_index(const TableSchema* schema) {
 void* get_field_by_index(void* record, const TableSchema* schema, int col_idx) {
     if (!record || !schema || col_idx < 0 || col_idx >= schema->column_count) {
         #ifdef DEBUG
-        fprintf(stderr, "[DEBUG] Invalid parameters to get_field_by_index: record=%p, schema=%p, col_idx=%d\n", 
-                record, schema, col_idx);
+         DEBUG("Invalid parameters to get_field_by_index: record=%p, schema=%p, col_idx=%d\n",record, schema, col_idx);
         #endif
         return NULL;
     }
@@ -368,7 +368,7 @@ void* get_field_by_index(void* record, const TableSchema* schema, int col_idx) {
         case TYPE_TEXT: target_alignment = 1; break;
         default: 
             #ifdef DEBUG
-            fprintf(stderr, "[DEBUG] Unknown target field type: %d\n", target_col->type);
+            DEBUG("Unknown target field type: %d", target_col->type);
             #endif
             return NULL;
     }
@@ -406,7 +406,7 @@ void* get_field_by_index(void* record, const TableSchema* schema, int col_idx) {
                 break;
             default:
                 #ifdef DEBUG
-                fprintf(stderr, "[DEBUG] Unknown field type: %d\n", col->type);
+                DEBUG("Unknown field type: %d", col->type);
                 #endif
                 return NULL;  // Unknown type
         }
@@ -420,8 +420,7 @@ void* get_field_by_index(void* record, const TableSchema* schema, int col_idx) {
     offset = (offset + target_alignment - 1) & ~(target_alignment - 1);
     
     #ifdef DEBUG
-    fprintf(stderr, "[DEBUG] Field access - table: %s, column: %s, offset: %zu\n",
-            schema->name, target_col->name, offset);
+     DEBUG("Field access - table: %s, column: %s, offset: %zu\n", schema->name, target_col->name, offset);
     #endif
     
     return (char*)record + offset;
@@ -476,7 +475,7 @@ char* get_uuid_from_record(void* record, const TableSchema* schema) {
     size_t len = strnlen(uuid_str, 37);  // 36 chars for UUID + 1 for null
     if (len > 36) {  // UUID is 36 chars (with hyphens)
         #ifdef DEBUG
-        fprintf(stderr, "[DEBUG] Invalid UUID string: length %zu > 36\n", len);
+        DEBUG("Invalid UUID string: length %zu > 36", len);
         #endif
         return NULL;
     }

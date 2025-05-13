@@ -8,6 +8,7 @@
 #include <string.h>
 #include <signal.h>
 #include <setjmp.h>
+#include <ctype.h> 
 #include <readline/readline.h>
 #include <readline/history.h>
 #include "interactive_mode.h"
@@ -70,9 +71,40 @@ static int process_sql_query(const char* query, const char* database_path, Outpu
 /**
  * @brief Process a single command in interactive mode
  */
+/**
+ * @brief Process a single command in interactive mode
+ */
 int process_interactive_command(const char* command, const char* database_path) {
     if (!command || strlen(command) == 0) {
         return 0;
+    }
+    
+    // Check for EXIT command (case-insensitive)
+    char cmd_copy[256];
+    strncpy(cmd_copy, command, sizeof(cmd_copy) - 1);
+    cmd_copy[sizeof(cmd_copy) - 1] = '\0';
+    
+    // Strip leading and trailing whitespace
+    char* cmd_trimmed = cmd_copy;
+    while (*cmd_trimmed == ' ' || *cmd_trimmed == '\t') cmd_trimmed++;
+    
+    size_t len = strlen(cmd_trimmed);
+    while (len > 0 && (cmd_trimmed[len-1] == ' ' || cmd_trimmed[len-1] == '\t' || cmd_trimmed[len-1] == ';')) {
+        cmd_trimmed[--len] = '\0';
+    }
+    
+    // Convert to uppercase for comparison
+    char cmd_upper[256];
+    strncpy(cmd_upper, cmd_trimmed, sizeof(cmd_upper) - 1);
+    cmd_upper[sizeof(cmd_upper) - 1] = '\0';
+    
+    for (size_t i = 0; cmd_upper[i]; i++) {
+        cmd_upper[i] = toupper((unsigned char)cmd_upper[i]);
+    }
+    
+    // Check if it's EXIT
+    if (strcmp(cmd_upper, "EXIT") == 0) {
+        return 1; // Signal to exit
     }
     
     // Check for CLI commands
@@ -83,7 +115,6 @@ int process_interactive_command(const char* command, const char* database_path) 
     // Process as SQL query
     return process_sql_query(command, database_path, FORMAT_TABLE);
 }
-
 /**
  * @brief Build multi-line SQL statement
  */

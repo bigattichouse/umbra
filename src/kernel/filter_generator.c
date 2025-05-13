@@ -8,6 +8,7 @@
 #include <string.h>
 #include <ctype.h>
 #include "filter_generator.h"
+#include "../util/debug.h"
 
 /**
  * @brief Generate comparison operator
@@ -152,7 +153,7 @@ int generate_filter_condition(const Expression* expr, const TableSchema* schema,
     
     #ifdef DEBUG
     if (result == 0) {
-        fprintf(stderr, "[DEBUG] Generated filter condition: %s\n", output);
+        DEBUG("Generated filter condition: %s", output);
     }
     #endif
     

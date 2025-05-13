@@ -18,11 +18,15 @@
 /**
  * @brief Show help for CLI commands
  */
+/**
+ * @brief Show help for CLI commands
+ */
 void show_help(void) {
     printf("CLI Commands:\n");
     printf("  .help           Show this help message\n");
     printf("  .exit           Exit the CLI\n");
     printf("  .quit           Exit the CLI\n");
+    printf("  EXIT            Exit the CLI (SQL command)\n");  // Add this line
     printf("  .tables         List all tables\n");
     printf("  .schema <table> Show schema for a table\n");
     printf("  .format <type>  Set output format (table, csv, json)\n");

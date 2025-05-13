@@ -2,7 +2,7 @@
 
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall -Wextra -g3 -O0 -I. -fsanitize=address -fno-omit-frame-pointer -DDEBUG 
+CFLAGS = -Wall -Wextra -g3 -O0 -I. -fsanitize=address -fno-omit-frame-pointer 
 LDFLAGS = -ldl -lreadline -luuid -fsanitize=address
 AR = ar
 ARFLAGS = rcs
@@ -62,7 +62,8 @@ CLI_SRCS = $(SRC_DIR)/cli/cli_main.c \
            $(SRC_DIR)/cli/cli_commands.c \
            $(SRC_DIR)/cli/command_history.c
            
-UTIL_SRCS = $(SRC_DIR)/util/uuid_utils.c
+UTIL_SRCS = $(SRC_DIR)/util/uuid_utils.c \
+            $(SRC_DIR)/util/uuid_utils.c
 
 # New index module source files
 INDEX_SRCS = $(SRC_DIR)/index/index_manager.c \
