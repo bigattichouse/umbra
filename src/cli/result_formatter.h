@@ -19,6 +19,17 @@ typedef enum {
 } OutputFormat;
 
 /**
+ * @brief Get string representation of a field value
+ * @param result Query result containing schema
+ * @param row Row data 
+ * @param col_idx Index of column to get
+ * @param buffer Output buffer for string value
+ * @param buffer_size Size of output buffer
+ */
+void get_field_string(const QueryResult* result, void* row, int col_idx, 
+                    char* buffer, size_t buffer_size);
+
+/**
  * @brief Format and display query results
  * @param result Query result to format
  * @param format Output format

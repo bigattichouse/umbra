@@ -331,9 +331,32 @@ int find_uuid_column_index(const TableSchema* schema) {
  * @param col_idx Index of column to retrieve
  * @return Pointer to the field or NULL on error
  */
+/**
+ * @brief Get pointer to field by index with proper handling of string types
+ * @param record Pointer to record struct
+ * @param schema Schema describing the record structure
+ * @param col_idx Index of column to retrieve
+ * @return Pointer to the field or NULL on error
+ */
 void* get_field_by_index(void* record, const TableSchema* schema, int col_idx) {
     if (!record || !schema || col_idx < 0 || col_idx >= schema->column_count) {
+        #ifdef DEBUG
+        fprintf(stderr, "[DEBUG] Invalid parameters to get_field_by_index: record=%p, schema=%p, col_idx=%d\n", 
+                record, schema, col_idx);
+        #endif
         return NULL;
+    }
+    
+    #ifdef DEBUG
+    fprintf(stderr, "[DEBUG] Accessing field at index %d in table %s\n", 
+            col_idx, schema->name);
+    #endif
+    
+    // For simple, direct field access when dealing with a struct
+    // This is a simplified approach that directly returns the record pointer
+    // when working with a results buffer from kernel execution
+    if (col_idx == 0 && schema->column_count > 0) {
+        return record;
     }
     
     // Calculate proper field offset
@@ -372,6 +395,9 @@ void* get_field_by_index(void* record, const TableSchema* schema, int col_idx) {
                 alignment = 1;
                 break;
             default:
+                #ifdef DEBUG
+                fprintf(stderr, "[DEBUG] Unknown field type: %d\n", col->type);
+                #endif
                 return NULL;  // Unknown type
         }
         
@@ -391,19 +417,22 @@ void* get_field_by_index(void* record, const TableSchema* schema, int col_idx) {
         case TYPE_DATE: target_alignment = __alignof__(time_t); break;
         case TYPE_VARCHAR:
         case TYPE_TEXT: target_alignment = 1; break;
-        default: return NULL;
+        default: 
+            #ifdef DEBUG
+            fprintf(stderr, "[DEBUG] Unknown target field type: %d\n", target_col->type);
+            #endif
+            return NULL;
     }
     
     offset = (offset + target_alignment - 1) & ~(target_alignment - 1);
     
-    #ifdef DEBUG_FIELD_ACCESS
-    fprintf(stderr, "Field access - table: %s, column: %s, offset: %zu\n",
+    #ifdef DEBUG
+    fprintf(stderr, "[DEBUG] Field access - table: %s, column: %s, offset: %zu\n",
             schema->name, target_col->name, offset);
     #endif
     
     return (char*)record + offset;
 }
-
 /**
  * @brief Get field pointer by name
  */

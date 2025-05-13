@@ -12,12 +12,19 @@
 /**
  * @brief Get string representation of a field value
  */
-static void get_field_string(const QueryResult* result, void* row, int col_idx, 
-                            char* buffer, size_t buffer_size) {
+/**
+ * @brief Get string representation of a field value
+ */
+void get_field_string(const QueryResult* result, void* row, int col_idx, 
+                      char* buffer, size_t buffer_size) {
     if (!result || !result->result_schema || !row || !buffer || buffer_size <= 0) {
         buffer[0] = '\0';
         return;
     }
+
+    #ifdef DEBUG
+    fprintf(stderr, "[DEBUG] get_field_string: row=%p, col_idx=%d\n", row, col_idx);
+    #endif
     
     const ColumnDefinition* col = &result->result_schema->columns[col_idx];
     
@@ -30,21 +37,34 @@ static void get_field_string(const QueryResult* result, void* row, int col_idx,
         return;
     }
     
-    // There are two possible formats for row data:
-    // 1. A direct pointer to a record struct
-    // 2. An array of pointers to individual fields
-    
     void* field_value = NULL;
     
-    // Check if we're dealing with a flattened row (array of pointers)
+    // Check if we're dealing with a pointer array or a direct struct
     if (result->row_format == ROW_FORMAT_POINTER_ARRAY) {
+        // This format has an array of pointers to individual fields
         void** fields = (void**)row;
         if (col_idx >= 0 && col_idx < result->result_schema->column_count) {
             field_value = fields[col_idx];
+        } else {
+            #ifdef DEBUG
+            fprintf(stderr, "[DEBUG] Invalid column index for pointer array: %d\n", col_idx);
+            #endif
         }
     } else {
-        // Use record_access.c to get the field by index
-        field_value = get_field_by_index(row, result->result_schema, col_idx);
+        // This is a direct struct - use record_access.c to get the field
+        if (col_idx == 0) {
+            // Optimization: for first column, can use the row directly in some cases
+            field_value = row;
+        } else {
+            field_value = get_field_by_index(row, result->result_schema, col_idx);
+        }
+        
+        #ifdef DEBUG
+        if (!field_value) {
+            fprintf(stderr, "[DEBUG] Failed to get field value for column %d (%s)\n", 
+                    col_idx, col->name);
+        }
+        #endif
     }
     
     // Handle NULL field value safely
@@ -68,7 +88,7 @@ static void get_field_string(const QueryResult* result, void* row, int col_idx,
         }
         case TYPE_VARCHAR:
         case TYPE_TEXT: {
-            // Use a safer approach for strings
+            // For string types, the field value is already a string
             const char* value = (const char*)field_value;
             if (value) {
                 // Manual string copy with bounds checking
