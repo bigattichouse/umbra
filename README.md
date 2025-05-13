@@ -4,6 +4,76 @@
 
 Umbra is an experimental compiled database system where data is directly embedded in C code, compiled into shared objects, and loaded dynamically. Unlike traditional databases that parse data at runtime, Umbra's hopes to achieve exceptional performance through zero-copy access and compiler optimizations.
 
+## Quickstart
+
+### Basic Build Commands
+```bash
+# Build library, CLI executable and tests
+make
+
+# Build and run all tests
+make test
+
+# Build and run specific tests
+make test_create_table
+make test_crud
+make test_index
+
+# Debug a test with GDB
+make debug_test
+
+# Run test with Valgrind memory checker
+make valgrind_test
+
+# Clean build artifacts
+make clean
+
+# Install to system (default: /usr/local)
+make install
+
+# Uninstall from system
+make uninstall
+
+# View detailed build information
+make info
+```
+
+### Installation Location
+By default, installation goes to `/usr/local`. You can change this with:
+```bash
+make install PREFIX=/your/custom/path
+```
+
+I recommend just testing it out and NOT installing it, this is just an experiment... just build and run it for fun, I haven't event tried installing it.
+
+## Required Ubuntu Packages
+
+To build and run the Umbra Database on Ubuntu, you'll need to install the following packages:
+
+```bash
+# Essential build tools
+sudo apt install build-essential  # Includes gcc, make, and basic build tools
+
+# Required libraries
+sudo apt install libreadline-dev  # For CLI interactive mode
+sudo apt install uuid-dev         # For UUID generation
+
+# Debugging tools (optional but recommended)
+sudo apt install gdb              # For debugging
+sudo apt install valgrind         # For memory leak detection
+
+# Other potential dependencies
+sudo apt install git              # For version control and data distribution
+```
+
+## Basic Usage (Based on Makefile Structure)
+
+After building, you can run the database using:
+```bash
+./build/bin/umbra
+```
+
+
 ## Key Features
 
 - **Compiled Data Pages**: Data definitions are converted to C structs and compiled into shared objects
