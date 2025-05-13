@@ -461,15 +461,65 @@ void* get_field_from_record(void* record, const TableSchema* schema, const char*
  * @brief Get UUID string from record
  */
 char* get_uuid_from_record(void* record, const TableSchema* schema) {
-    int uuid_idx = find_uuid_column_index(schema);
+    if (!record || !schema) {
+        return NULL;
+    }
+    
+    // Find the UUID column index
+    int uuid_idx = -1;
+    for (int i = 0; i < schema->column_count; i++) {
+        if (strcmp(schema->columns[i].name, "_uuid") == 0) {
+            uuid_idx = i;
+            break;
+        }
+    }
+    
     if (uuid_idx < 0) {
+        // UUID column not found
         return NULL;
     }
     
-    char* uuid_ptr = (char*)get_field_by_index(record, schema, uuid_idx);
-    if (!uuid_ptr || !*uuid_ptr) {
+    // Calculate the proper offset for the UUID field
+    size_t offset = 0;
+    for (int i = 0; i < uuid_idx; i++) {
+        // Add field size with proper alignment
+        switch (schema->columns[i].type) {
+            case TYPE_INT:
+                offset = (offset + 3) & ~3;  // 4-byte align
+                offset += sizeof(int);
+                break;
+            case TYPE_FLOAT:
+                offset = (offset + 7) & ~7;  // 8-byte align
+                offset += sizeof(double);
+                break;
+            case TYPE_BOOLEAN:
+                offset += sizeof(bool);
+                break;
+            case TYPE_VARCHAR:
+                // Add string length + null terminator
+                offset += schema->columns[i].length + 1;
+                break;
+            case TYPE_TEXT:
+                offset += 4096;  // Fixed size for TEXT fields
+                break;
+            case TYPE_DATE:
+                offset = (offset + 7) & ~7;  // 8-byte align
+                offset += sizeof(time_t);
+                break;
+            default:
+                offset += 8;  // Default to 8 bytes
+                break;
+        }
+    }
+    
+    // Access the UUID field
+    char* uuid_ptr = (char*)record + offset;
+    
+    // Validate the UUID string exists and isn't empty
+    if (!uuid_ptr || *uuid_ptr == '\0') {
         return NULL;
     }
     
+    // Return a copy of the UUID
     return strdup(uuid_ptr);
 }
