@@ -119,6 +119,9 @@ TableSchema* build_result_schema(const SelectStatement* stmt, const TableSchema*
 /**
  * @brief Execute a SELECT statement
  */
+/**
+ * @brief Execute a SELECT statement
+ */
 int execute_select(const SelectStatement* stmt, const char* base_dir, QueryResult* result) {
     const char* table_name = stmt->from_table->table_name;
     
@@ -222,12 +225,16 @@ int execute_select(const SelectStatement* stmt, const char* base_dir, QueryResul
             // Get pointer to raw data
             void* first_record;
             if (read_record(&page, 0, &first_record) == 0) {
+                // FIXED: Create a proper buffer for the kernel to write to
+                char result_buffer[64];
+                
                 // Execute kernel
-                int page_count = 0;
                 int result_count = execute_kernel(&loaded_kernel, first_record, page_records,
-                                              &page_count, 1);
+                                              result_buffer, sizeof(result_buffer));
                 
                 if (result_count > 0) {
+                    // Parse the count from the buffer
+                    int page_count = atoi(result_buffer);
                     // Add this page's count to the total
                     total_count += page_count;
                 }

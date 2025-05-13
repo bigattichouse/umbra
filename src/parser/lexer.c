@@ -202,7 +202,10 @@ static Token scan_number(Lexer* lexer) {
 }
 
 Token lexer_next_token(Lexer* lexer) {
-    // Free previous token value
+    // Create a token to return (this will be a copy)
+    Token result;
+    
+    // Free the lexer's current token value if it exists
     if (lexer->current_token.value) {
         free(lexer->current_token.value);
         lexer->current_token.value = NULL;
@@ -211,8 +214,15 @@ Token lexer_next_token(Lexer* lexer) {
     skip_whitespace(lexer);
     
     if (lexer->position >= lexer->length) {
-        lexer->current_token = make_token(TOKEN_EOF, NULL, lexer->line, lexer->column);
-        return lexer->current_token;
+        // End of input
+        result.type = TOKEN_EOF;
+        result.value = NULL;
+        result.line = lexer->line;
+        result.column = lexer->column;
+        
+        // Update lexer's current token
+        lexer->current_token = result;
+        return result;
     }
     
     char c = lexer->input[lexer->position];
@@ -222,102 +232,183 @@ Token lexer_next_token(Lexer* lexer) {
     switch (c) {
         case ',':
             lexer->position++; lexer->column++;
-            lexer->current_token = make_token(TOKEN_COMMA, NULL, lexer->line, column);
-            return lexer->current_token;
+            result.type = TOKEN_COMMA;
+            result.value = NULL;
+            result.line = lexer->line;
+            result.column = column;
+            lexer->current_token = result;
+            return result;
+            
         case '.':
             lexer->position++; lexer->column++;
-            lexer->current_token = make_token(TOKEN_DOT, NULL, lexer->line, column);
-            return lexer->current_token;
+            result.type = TOKEN_DOT;
+            result.value = NULL;
+            result.line = lexer->line;
+            result.column = column;
+            lexer->current_token = result;
+            return result;
+            
         case ';':
             lexer->position++; lexer->column++;
-            lexer->current_token = make_token(TOKEN_SEMICOLON, NULL, lexer->line, column);
-            return lexer->current_token;
+            result.type = TOKEN_SEMICOLON;
+            result.value = NULL;
+            result.line = lexer->line;
+            result.column = column;
+            lexer->current_token = result;
+            return result;
+            
         case '(':
             lexer->position++; lexer->column++;
-            lexer->current_token = make_token(TOKEN_LPAREN, NULL, lexer->line, column);
-            return lexer->current_token;
+            result.type = TOKEN_LPAREN;
+            result.value = NULL;
+            result.line = lexer->line;
+            result.column = column;
+            lexer->current_token = result;
+            return result;
+            
         case ')':
             lexer->position++; lexer->column++;
-            lexer->current_token = make_token(TOKEN_RPAREN, NULL, lexer->line, column);
-            return lexer->current_token;
+            result.type = TOKEN_RPAREN;
+            result.value = NULL;
+            result.line = lexer->line;
+            result.column = column;
+            lexer->current_token = result;
+            return result;
+            
         case '+':
             lexer->position++; lexer->column++;
-            lexer->current_token = make_token(TOKEN_PLUS, NULL, lexer->line, column);
-            return lexer->current_token;
+            result.type = TOKEN_PLUS;
+            result.value = NULL;
+            result.line = lexer->line;
+            result.column = column;
+            lexer->current_token = result;
+            return result;
+            
         case '-':
             lexer->position++; lexer->column++;
-            lexer->current_token = make_token(TOKEN_MINUS, NULL, lexer->line, column);
-            return lexer->current_token;
+            result.type = TOKEN_MINUS;
+            result.value = NULL;
+            result.line = lexer->line;
+            result.column = column;
+            lexer->current_token = result;
+            return result;
+            
         case '*':
             lexer->position++; lexer->column++;
-            lexer->current_token = make_token(TOKEN_STAR, NULL, lexer->line, column);
-            return lexer->current_token;
+            result.type = TOKEN_STAR;
+            result.value = NULL;
+            result.line = lexer->line;
+            result.column = column;
+            lexer->current_token = result;
+            return result;
+            
         case '/':
             lexer->position++; lexer->column++;
-            lexer->current_token = make_token(TOKEN_SLASH, NULL, lexer->line, column);
-            return lexer->current_token;
+            result.type = TOKEN_SLASH;
+            result.value = NULL;
+            result.line = lexer->line;
+            result.column = column;
+            lexer->current_token = result;
+            return result;
+            
         case '=':
             lexer->position++; lexer->column++;
-            lexer->current_token = make_token(TOKEN_EQUALS, NULL, lexer->line, column);
-            return lexer->current_token;
+            result.type = TOKEN_EQUALS;
+            result.value = NULL;
+            result.line = lexer->line;
+            result.column = column;
+            lexer->current_token = result;
+            return result;
+            
         case '<':
             lexer->position++; lexer->column++;
             if (lexer->position < lexer->length) {
                 if (lexer->input[lexer->position] == '=') {
                     lexer->position++; lexer->column++;
-                    lexer->current_token = make_token(TOKEN_LESS_EQUAL, NULL, lexer->line, column);
+                    result.type = TOKEN_LESS_EQUAL;
+                    result.value = NULL;
                 } else if (lexer->input[lexer->position] == '>') {
                     lexer->position++; lexer->column++;
-                    lexer->current_token = make_token(TOKEN_NOT_EQUALS, NULL, lexer->line, column);
+                    result.type = TOKEN_NOT_EQUALS;
+                    result.value = NULL;
                 } else {
-                    lexer->current_token = make_token(TOKEN_LESS, NULL, lexer->line, column);
+                    result.type = TOKEN_LESS;
+                    result.value = NULL;
                 }
             } else {
-                lexer->current_token = make_token(TOKEN_LESS, NULL, lexer->line, column);
+                result.type = TOKEN_LESS;
+                result.value = NULL;
             }
-            return lexer->current_token;
+            result.line = lexer->line;
+            result.column = column;
+            lexer->current_token = result;
+            return result;
+            
         case '>':
             lexer->position++; lexer->column++;
             if (lexer->position < lexer->length && lexer->input[lexer->position] == '=') {
                 lexer->position++; lexer->column++;
-                lexer->current_token = make_token(TOKEN_GREATER_EQUAL, NULL, lexer->line, column);
+                result.type = TOKEN_GREATER_EQUAL;
+                result.value = NULL;
             } else {
-                lexer->current_token = make_token(TOKEN_GREATER, NULL, lexer->line, column);
+                result.type = TOKEN_GREATER;
+                result.value = NULL;
             }
-            return lexer->current_token;
+            result.line = lexer->line;
+            result.column = column;
+            lexer->current_token = result;
+            return result;
+            
         case '!':
             if (lexer->position + 1 < lexer->length && lexer->input[lexer->position + 1] == '=') {
                 lexer->position += 2; lexer->column += 2;
-                lexer->current_token = make_token(TOKEN_NOT_EQUALS, NULL, lexer->line, column);
-                return lexer->current_token;
+                result.type = TOKEN_NOT_EQUALS;
+                result.value = NULL;
+                result.line = lexer->line;
+                result.column = column;
+                lexer->current_token = result;
+                return result;
             }
             break;
     }
     
     // Strings
     if (c == '\'' || c == '"') {
-        lexer->current_token = scan_string(lexer);
-        return lexer->current_token;
+        result = scan_string(lexer);
+        lexer->current_token = result;
+        // Note: scan_string already allocates memory for the value
+        return result;
     }
     
     // Numbers
     if (isdigit(c)) {
-        lexer->current_token = scan_number(lexer);
-        return lexer->current_token;
+        result = scan_number(lexer);
+        lexer->current_token = result;
+        // Note: scan_number already allocates memory for the value
+        return result;
     }
     
     // Identifiers and keywords
     if (isalpha(c) || c == '_') {
-        lexer->current_token = scan_identifier(lexer);
-        return lexer->current_token;
+        result = scan_identifier(lexer);
+        lexer->current_token = result;
+        // Note: scan_identifier already allocates memory for the value
+        return result;
     }
     
     // Error token for unexpected characters
     lexer->position++; lexer->column++;
+    result.type = TOKEN_ERROR;
+    
     char error_msg[32];
     snprintf(error_msg, sizeof(error_msg), "Unexpected character: %c", c);
-    lexer->current_token = make_token(TOKEN_ERROR, error_msg, lexer->line, column);
-    return lexer->current_token;
+    result.value = strdup(error_msg);
+    
+    result.line = lexer->line;
+    result.column = column;
+    
+    lexer->current_token = result;
+    return result;
 }
 
 Token lexer_peek_token(Lexer* lexer) {
