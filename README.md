@@ -2,7 +2,13 @@
 
 ## Overview
 
-Umbra is an experimental compiled database system where data is directly embedded in C code, compiled into shared objects, and loaded dynamically. Unlike traditional databases that parse data at runtime, Umbra's hopes to achieve exceptional performance through zero-copy access and compiler optimizations.
+Umbra is an experimental compiled database system where data is directly embedded in C code, compiled into shared objects, and loaded dynamically. Unlike traditional databases that parse data at runtime, Umbra's hopes to achieve exceptional performance through zero-copy access and compiler optimizations.  
+
+Think of the data itself as a DLL (Shared Object .so in reality), and the system loads the table dynamically without needing to parse the structure.  Queries are similarly compiled to from SQL-like statements to C code that can interact with and read the data.  Technically, you could use `git` as a replication system, or even `rsync`.  
+
+For this project I used my original (mostly abandoned) prototype and worked with claude.ai to expand the idea into something approaching a minimum viable product. See branch `prototype` for the original idea which was just the code that compiles to the `.so` files and query tool and dynamic loading that I'd written by hand.  It took me a little less than a week to build a CLI version that worked well enough to post.
+
+I probably wouldn't use this in production just yet - but you could easily pull out the data files and build kernels to have a large/fast/immutable database embedded in your system that could be easily updated.
 
 ## Quickstart
 
