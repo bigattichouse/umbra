@@ -183,6 +183,17 @@ bool validate_select_list(const SelectStatement* stmt, const TableSchema* schema
         return true;
     }
     
+    // Check for COUNT(*)
+    if (stmt->select_list.count == 1) {
+        Expression* expr = stmt->select_list.expressions[0];
+        if (expr->type == AST_FUNCTION_CALL &&
+            strcasecmp(expr->data.function.function_name, "COUNT") == 0 &&
+            expr->data.function.argument_count == 1 &&
+            expr->data.function.arguments[0]->type == AST_STAR) {
+            return true;  // COUNT(*) is valid
+        }
+    }
+    
     // Validate each selected expression
     for (int i = 0; i < stmt->select_list.count; i++) {
         Expression* expr = stmt->select_list.expressions[i];
@@ -193,7 +204,7 @@ bool validate_select_list(const SelectStatement* stmt, const TableSchema* schema
                 return false;
             }
         } else {
-            // We only support column references in projections for now
+            // We only support column references and COUNT(*) in projections for now
             return false;
         }
     }
