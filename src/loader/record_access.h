@@ -9,7 +9,7 @@
 #include "page_manager.h"
 #include "../schema/schema_parser.h"
 
-const int _UUID_COLUMN_INDEX = 0;
+extern const int _UUID_COLUMN_INDEX;
 
 /**
  * @struct TableCursor

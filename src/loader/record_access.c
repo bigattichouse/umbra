@@ -11,6 +11,8 @@
 #include "error_handler.h"
 #include "../schema/type_system.h"
 
+//_UUID is always first
+const int _UUID_COLUMN_INDEX = 0; 
 
 /**
  * @brief Count the number of page files for a table
