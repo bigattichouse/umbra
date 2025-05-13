@@ -26,46 +26,56 @@ static void test_lexer(void) {
     
     Token token = lexer_next_token(&lexer);
     assert(token.type == TOKEN_SELECT);
+    token_free(&token);  // Free the token after use
     
     token = lexer_next_token(&lexer);
     assert(token.type == TOKEN_IDENTIFIER);
     assert(strcmp(token.value, "name") == 0);
+    token_free(&token);  // Free the token after use
     
     token = lexer_next_token(&lexer);
     assert(token.type == TOKEN_COMMA);
+    token_free(&token);  // Free the token after use
     
     token = lexer_next_token(&lexer);
     assert(token.type == TOKEN_IDENTIFIER);
     assert(strcmp(token.value, "age") == 0);
+    token_free(&token);  // Free the token after use
     
     token = lexer_next_token(&lexer);
     assert(token.type == TOKEN_FROM);
+    token_free(&token);  // Free the token after use
     
     token = lexer_next_token(&lexer);
     assert(token.type == TOKEN_IDENTIFIER);
     assert(strcmp(token.value, "users") == 0);
+    token_free(&token);  // Free the token after use
     
     token = lexer_next_token(&lexer);
     assert(token.type == TOKEN_WHERE);
+    token_free(&token);  // Free the token after use
     
     token = lexer_next_token(&lexer);
     assert(token.type == TOKEN_IDENTIFIER);
     assert(strcmp(token.value, "age") == 0);
+    token_free(&token);  // Free the token after use
     
     token = lexer_next_token(&lexer);
     assert(token.type == TOKEN_GREATER);
+    token_free(&token);  // Free the token after use
     
     token = lexer_next_token(&lexer);
     assert(token.type == TOKEN_NUMBER);
     assert(strcmp(token.value, "21") == 0);
+    token_free(&token);  // Free the token after use
     
     token = lexer_next_token(&lexer);
     assert(token.type == TOKEN_EOF);
+    token_free(&token);  // Free the token after use
     
     lexer_free(&lexer);
     printf("Lexer test passed!\n");
 }
-
 /**
  * @brief Test parser with SELECT statement
  */

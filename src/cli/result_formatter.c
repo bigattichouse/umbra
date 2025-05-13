@@ -22,6 +22,13 @@ void get_field_string(const QueryResult* result, void* row, int col_idx,
         return;
     }
 
+    // Add bounds checking for column index
+    if (col_idx < 0 || col_idx >= result->result_schema->column_count) {
+        // Invalid column index
+        snprintf(buffer, buffer_size, "INVALID_COL_IDX");
+        return;
+    }
+    
     #ifdef DEBUG
     fprintf(stderr, "[DEBUG] get_field_string: row=%p, col_idx=%d\n", row, col_idx);
     #endif
