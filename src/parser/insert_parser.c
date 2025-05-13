@@ -32,7 +32,7 @@ static bool parse_column_list(Parser* parser, InsertStatement* stmt) {
         }
         
         add_insert_column(stmt, parser->current_token.value);
-        parser->current_token = lexer_next_token(parser->lexer);
+        consume_token(parser);
         
         if (match(parser, TOKEN_COMMA)) {
             continue;
@@ -106,7 +106,7 @@ InsertStatement* parse_insert_statement(Parser* parser) {
     }
     
     stmt->table_name = strdup(parser->current_token.value);
-    parser->current_token = lexer_next_token(parser->lexer);
+    consume_token(parser); 
     
     // Parse optional column list
     if (!parse_column_list(parser, stmt)) {

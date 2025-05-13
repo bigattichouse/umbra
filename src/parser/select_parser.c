@@ -52,14 +52,14 @@ static Expression* parse_literal(Parser* parser) {
             Literal* lit = create_literal(TYPE_FLOAT, parser->current_token.value);
             expr->data.literal = *lit;
             free(lit);
-            parser->current_token = lexer_next_token(parser->lexer);
+            consume_token(parser);
             break;
         }
         case TOKEN_STRING: {
             Literal* lit = create_literal(TYPE_TEXT, parser->current_token.value);
             expr->data.literal = *lit;
             free(lit);
-            parser->current_token = lexer_next_token(parser->lexer);
+            consume_token(parser);
             break;
         }
         case TOKEN_TRUE:
@@ -68,14 +68,14 @@ static Expression* parse_literal(Parser* parser) {
                                         parser->current_token.type == TOKEN_TRUE ? "true" : "false");
             expr->data.literal = *lit;
             free(lit);
-            parser->current_token = lexer_next_token(parser->lexer);
+            consume_token(parser);
             break;
         }
         case TOKEN_NULL: {
             Literal* lit = create_literal(TYPE_TEXT, NULL);
             expr->data.literal = *lit;
             free(lit);
-            parser->current_token = lexer_next_token(parser->lexer);
+            consume_token(parser);
             break;
         }
         default:
@@ -94,7 +94,7 @@ static Expression* parse_column_ref(Parser* parser) {
     Expression* expr = create_expression(AST_COLUMN_REF);
     
     char* first_name = strdup(parser->current_token.value);
-    parser->current_token = lexer_next_token(parser->lexer);
+    consume_token(parser);
     
     // Check for table.column syntax
     if (match(parser, TOKEN_DOT)) {
@@ -108,7 +108,7 @@ static Expression* parse_column_ref(Parser* parser) {
         ColumnRef* ref = create_column_ref(first_name, parser->current_token.value, NULL);
         expr->data.column = *ref;
         free(ref);
-        parser->current_token = lexer_next_token(parser->lexer);
+        consume_token(parser);
     } else {
         ColumnRef* ref = create_column_ref(NULL, first_name, NULL);
         expr->data.column = *ref;
@@ -139,7 +139,7 @@ static Expression* parse_comparison(Parser* parser) {
                 return left;
         }
         
-        parser->current_token = lexer_next_token(parser->lexer);
+        consume_token(parser);
         Expression* right = parse_primary(parser);
         if (!right) {
             free_expression(left);
@@ -258,21 +258,21 @@ static bool parse_from_clause(Parser* parser, SelectStatement* stmt) {
     stmt->from_table->table_name = strdup(parser->current_token.value);
     stmt->from_table->alias = NULL;
     
-    parser->current_token = lexer_next_token(parser->lexer);
+    consume_token(parser);
     
     // Check for alias
     if (parser->current_token.type == TOKEN_AS) {
-        parser->current_token = lexer_next_token(parser->lexer);
+        consume_token(parser);
         if (parser->current_token.type != TOKEN_IDENTIFIER) {
             parser_set_error(parser, "Expected alias after AS");
             return false;
         }
         stmt->from_table->alias = strdup(parser->current_token.value);
-        parser->current_token = lexer_next_token(parser->lexer);
+        consume_token(parser);
     } else if (parser->current_token.type == TOKEN_IDENTIFIER) {
         // Implicit alias
         stmt->from_table->alias = strdup(parser->current_token.value);
-        parser->current_token = lexer_next_token(parser->lexer);
+        consume_token(parser);
     }
     
     return true;
@@ -353,7 +353,7 @@ static Expression* parse_function_call(Parser* parser) {
     }
     
     char* function_name = strdup(parser->current_token.value);
-    parser->current_token = lexer_next_token(parser->lexer);
+    consume_token(parser);
     
     if (!expect(parser, TOKEN_LPAREN, "Expected '(' after function name")) {
         free(function_name);
@@ -383,7 +383,7 @@ static Expression* parse_function_call(Parser* parser) {
     // Parse arguments
     if (parser->current_token.type == TOKEN_RPAREN) {
         // No arguments
-        parser->current_token = lexer_next_token(parser->lexer);
+        consume_token(parser);
     } else if (parser->current_token.type == TOKEN_STAR) {
         // Special case for COUNT(*)
         Expression* star_expr = create_expression(AST_STAR);
@@ -394,7 +394,7 @@ static Expression* parse_function_call(Parser* parser) {
         }
         
         add_function_argument(&expr->data.function, star_expr);
-        parser->current_token = lexer_next_token(parser->lexer);
+        consume_token(parser);
         
         if (!expect(parser, TOKEN_RPAREN, "Expected ')' after '*'")) {
             free_expression(expr);
@@ -453,7 +453,7 @@ static Expression* parse_primary(Parser* parser) {
             }
         
         case TOKEN_LPAREN: {
-            parser->current_token = lexer_next_token(parser->lexer);
+            consume_token(parser);
             Expression* expr = parse_expression(parser);
             if (!expr) return NULL;
             
@@ -466,7 +466,7 @@ static Expression* parse_primary(Parser* parser) {
         
         case TOKEN_STAR: {
             Expression* expr = create_expression(AST_STAR);
-            parser->current_token = lexer_next_token(parser->lexer);
+            consume_token(parser);
             return expr;
         }
         

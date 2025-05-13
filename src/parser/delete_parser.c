@@ -63,7 +63,7 @@ DeleteStatement* parse_delete_statement(Parser* parser) {
     }
     
     stmt->table_name = strdup(parser->current_token.value);
-    parser->current_token = lexer_next_token(parser->lexer);
+    consume_token(parser);
     
     // Parse optional WHERE clause
     if (!parse_delete_where_clause(parser, stmt)) {

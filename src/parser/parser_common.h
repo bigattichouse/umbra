@@ -30,4 +30,6 @@ bool expect(Parser* parser, TokenType type, const char* error_msg);
  */
 Expression* parse_expression(Parser* parser);
 
+void consume_token(Parser* parser);
+
 #endif /* UMBRA_PARSER_COMMON_H */

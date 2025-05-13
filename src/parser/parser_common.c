@@ -20,6 +20,12 @@ void parser_set_error(Parser* parser, const char* format, ...) {
     va_end(args);
 }
 
+void consume_token(Parser* parser) {
+    Token next_token = lexer_next_token(parser->lexer);
+    token_unref(&parser->current_token);
+    parser->current_token = next_token;
+}
+
 /**
  * @brief Check if current token matches expected type
  */

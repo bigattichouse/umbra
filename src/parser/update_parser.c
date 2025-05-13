@@ -43,7 +43,7 @@ static bool parse_set_clause(Parser* parser, UpdateStatement* stmt) {
         }
         
         char* column_name = strdup(parser->current_token.value);
-        parser->current_token = lexer_next_token(parser->lexer);
+        consume_token(parser);
         
         // Expect equals sign
         if (!expect(parser, TOKEN_EQUALS, "Expected '=' after column name")) {
@@ -108,7 +108,7 @@ UpdateStatement* parse_update_statement(Parser* parser) {
     }
     
     stmt->table_name = strdup(parser->current_token.value);
-    parser->current_token = lexer_next_token(parser->lexer);
+    consume_token(parser); 
     
     // Parse SET clause
     if (!parse_set_clause(parser, stmt)) {
