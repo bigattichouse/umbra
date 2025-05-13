@@ -26,27 +26,20 @@ void parser_init(Parser* parser, Lexer* lexer) {
     parser->error_message[0] = '\0';
     parser->has_error = false;
     
-    // Get the token from lexer
-    Token token = lexer_next_token(lexer);
-    
-    // Create a deep copy
-    parser->current_token.type = token.type;
-    parser->current_token.line = token.line;
-    parser->current_token.column = token.column;
-    parser->current_token.value = token.value ? strdup(token.value) : NULL;
+    // Get the token from lexer (this will have ref_count = 1)
+    parser->current_token = lexer_next_token(lexer);
 }
 
 /**
  * @brief Free parser resources
  */
 void parser_free(Parser* parser) {
-    if (parser) {  
-        if (parser->current_token.value) {
-            free(parser->current_token.value);
-            parser->current_token.value = NULL;
-        }
+    if (parser) {
+        // Properly release the token
+        token_unref(&parser->current_token);
     }
 }
+
 
 /**
  * @brief Parse a literal value

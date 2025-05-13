@@ -1,6 +1,6 @@
 /**
  * @file lexer.h
- * @brief Lexer interface
+ * @brief Header for SQL lexer with reference-counted tokens
  */
 
 #ifndef UMBRA_LEXER_H
@@ -70,13 +70,14 @@ typedef enum {
 
 /**
  * @struct Token
- * @brief Represents a lexical token
+ * @brief Represents a lexical token with reference counting
  */
 typedef struct {
     TokenType type;
     char* value;
     int line;
     int column;
+    int ref_count;      // Reference count for memory management
 } Token;
 
 /**
@@ -91,6 +92,35 @@ typedef struct {
     int column;
     Token current_token;
 } Lexer;
+
+/**
+ * @brief Create a new token with ref count 1
+ * @param type Token type
+ * @param value Token value (will be copied)
+ * @param line Line number
+ * @param column Column number
+ * @return New token
+ */
+Token token_create(TokenType type, const char* value, int line, int column);
+
+/**
+ * @brief Increment reference count
+ * @param token Token to reference
+ */
+void token_ref(Token* token);
+
+/**
+ * @brief Decrement reference count, free if needed
+ * @param token Token to unreference
+ */
+void token_unref(Token* token);
+
+/**
+ * @brief Copy token (incrementing ref count of value)
+ * @param token Token to copy
+ * @return Copy of token
+ */
+Token token_copy(const Token* token);
 
 /**
  * @brief Initialize lexer with input
@@ -127,7 +157,7 @@ Token lexer_peek_token(Lexer* lexer);
 const char* token_type_to_string(TokenType type);
 
 /**
- * @brief Free a token
+ * @brief Free a token (legacy API, use token_unref instead)
  * @param token Token to free
  */
 void token_free(Token* token);

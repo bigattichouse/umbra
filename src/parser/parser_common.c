@@ -1,6 +1,6 @@
 /**
  * @file parser_common.c
- * @brief Common parser utilities implementation
+ * @brief Common parser utilities implementation with reference-counted tokens
  */
 
 #include "parser_common.h"
@@ -25,32 +25,20 @@ void parser_set_error(Parser* parser, const char* format, ...) {
  */
 bool match(Parser* parser, TokenType type) {
     if (parser->current_token.type == type) {
-        // Free the current token value
-        if (parser->current_token.value) {
-            free(parser->current_token.value);
-            parser->current_token.value = NULL;
-        }
-        
         // Get the next token
         Token next_token = lexer_next_token(parser->lexer);
         
-        // Copy token fields
-        parser->current_token.type = next_token.type;
-        parser->current_token.line = next_token.line;
-        parser->current_token.column = next_token.column;
+        // Unref current token before replacing it
+        token_unref(&parser->current_token);
         
-        // Safely copy the value - this creates a new memory allocation
-        parser->current_token.value = next_token.value ? strdup(next_token.value) : NULL;
-        
-        // Since we've made a copy, we MUST free the original to avoid leaks
-        if (next_token.value) {
-            free(next_token.value);
-        }
+        // Replace with the new token (already has ref_count=1 from lexer_next_token)
+        parser->current_token = next_token;
         
         return true;
     }
     return false;
 }
+
 /**
  * @brief Expect a specific token type
  */
