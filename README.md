@@ -56,7 +56,7 @@ After building, you can run the database using:
 ```bash
 ./build/bin/umbra
 ```
-
+You can then do some basic CREATE TABLE from SQL, SELECTS, INSERTS, UPDATES, DELETES, and CREATE INDEX calls.
 
 ## Key Features
 
