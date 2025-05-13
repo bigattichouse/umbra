@@ -32,77 +32,6 @@ static int estimate_max_results(const char* base_dir, const char* table_name) {
 }
 
 /**
- * @brief Execute kernel on a single page
- */
-static int execute_kernel_on_page(const LoadedKernel* kernel, LoadedPage* page,
-                                 void* results, int max_results, int current_count) {
-    // Get page data count
-    int page_count;
-    if (get_page_count(page, &page_count) != 0) {
-        return -1;
-    }
-    
-    // The kernel expects a pointer to the first element of a contiguous array
-    // of structs, not an array of pointers. The page's data is already in
-    // a contiguous array, so we just need to get a pointer to the first record.
-    void* first_record;
-    if (page_count == 0 || read_record(page, 0, &first_record) != 0) {
-        return 0; // No records to process
-    }
-    
-    // Debug output
-    #ifdef DEBUG
-    fprintf(stderr, "[DEBUG] Passing %d records to kernel\n", page_count);
-    
-    // Show the raw data as the kernel will see it
-    if (strcmp(page->table_name, "users") == 0) {
-        for (int i = 0; i < page_count; i++) {
-            void* record;
-            if (read_record(page, i, &record) != 0) {
-                break;
-            }
-            
-            fprintf(stderr, "[DEBUG] Raw record %d data (first 600 bytes):\n", i);
-            unsigned char* bytes = (unsigned char*)record;
-            
-            // Print enough bytes to cover the entire struct
-            int bytes_to_print = 600;  // Should be enough for the users struct
-            for (int j = 0; j < bytes_to_print; j++) {
-                fprintf(stderr, "%02x ", bytes[j]);
-                if ((j + 1) % 16 == 0) fprintf(stderr, "\n");
-            }
-            fprintf(stderr, "\n");
-            
-            // Try to interpret the fields manually based on known offsets
-            int* id_ptr = (int*)record;
-            char* name_ptr = (char*)((char*)record + 4);
-            char* email_ptr = (char*)((char*)record + 4 + 256);
-            int* age_ptr = (int*)((char*)record + 4 + 256 + 256);
-            
-            fprintf(stderr, "[DEBUG] Field interpretation - id: %d, name: '%s', email: '%s', age: %d\n",
-                    *id_ptr, name_ptr, email_ptr, *age_ptr);
-        }
-    }
-    #endif
-    
-    // Allocate space for kernel results
-    int remaining = max_results - current_count;
-    
-    // The kernel expects the data as a contiguous array, which it already is
-    // in the page. We pass the pointer to the first record, and the kernel
-    // will treat it as an array.
-    int results_from_page = execute_kernel(kernel, first_record, page_count,
-                                          (char*)results + current_count * sizeof(void*), 
-                                          remaining);
-    
-    #ifdef DEBUG
-    fprintf(stderr, "[DEBUG] Kernel returned %d results\n", results_from_page);
-    #endif
-    
-    return results_from_page;
-}
-
-/**
  * @brief Count pages for a table
  */
 static int count_table_pages(const char* base_dir, const char* table_name) {
@@ -191,7 +120,7 @@ TableSchema* build_result_schema(const SelectStatement* stmt, const TableSchema*
  * @brief Execute a SELECT statement
  */
 int execute_select(const SelectStatement* stmt, const char* base_dir, QueryResult* result) {
-        const char* table_name = stmt->from_table->table_name;
+    const char* table_name = stmt->from_table->table_name;
     
     // Load source table schema using the shared function
     TableSchema* source_schema = load_table_schema(table_name, base_dir);
@@ -199,6 +128,7 @@ int execute_select(const SelectStatement* stmt, const char* base_dir, QueryResul
         result->error_message = strdup("Table not found");
         return -1;
     }
+    
     if (stmt->where_clause) {
         fprintf(stderr, "[DEBUG] SELECT has WHERE clause\n");
     }
@@ -239,10 +169,15 @@ int execute_select(const SelectStatement* stmt, const char* base_dir, QueryResul
         return -1;
     }
     
-    // Allocate result buffer
+    // Calculate record size based on schema - fix: add proper cast
+    size_t record_size = calculate_record_size((const struct TableSchema*)source_schema);
+    
+    // Allocate result buffer for raw data
     int max_results = estimate_max_results(base_dir, table_name);
-    void* results_buffer = malloc(max_results * sizeof(void*));
-    if (!results_buffer) {
+    char* raw_results_buffer = malloc(max_results * record_size);
+    if (!raw_results_buffer) {
+        free_table_schema(result->result_schema);
+        result->result_schema = NULL;
         unload_kernel(&loaded_kernel);
         free_generated_kernel(kernel);
         free_table_schema(source_schema);
@@ -261,28 +196,66 @@ int execute_select(const SelectStatement* stmt, const char* base_dir, QueryResul
             continue;
         }
         
-        int page_results = execute_kernel_on_page(&loaded_kernel, &page,
-                                                 results_buffer, max_results, total_results);
-        
-        unload_page(&page);
-        
-        fprintf(stderr, "[DEBUG] Page %d returned %d results\n", page_num, page_results);
-        
-        if (page_results < 0) {
-            break;
+        // Execute kernel on this page
+        int page_count;
+        if (get_page_count(&page, &page_count) != 0) {
+            unload_page(&page);
+            continue;
         }
         
-        total_results += page_results;
+        // Get pointer to raw data
+        void* first_record;
+        if (page_count > 0 && read_record(&page, 0, &first_record) == 0) {
+            // Calculate where to place the next batch of results
+            void* results_pos = raw_results_buffer + (total_results * record_size);
+            
+            // Execute kernel
+            int results_from_page = execute_kernel(&loaded_kernel, first_record, page_count,
+                                                  results_pos, max_results - total_results);
+            
+            fprintf(stderr, "[DEBUG] Page %d returned %d results\n", page_num, results_from_page);
+            
+            if (results_from_page > 0) {
+                total_results += results_from_page;
+            }
+        }
+        
+        unload_page(&page);
     }
     
     fprintf(stderr, "[DEBUG] Total results: %d\n", total_results);
     
-
+    // Now create an array of pointers to each record in the raw buffer
+    void** row_pointers = malloc(total_results * sizeof(void*));
+    if (!row_pointers) {
+        free(raw_results_buffer);
+        free_table_schema(result->result_schema);
+        result->result_schema = NULL;
+        unload_kernel(&loaded_kernel);
+        free_generated_kernel(kernel);
+        free_table_schema(source_schema);
+        result->error_message = strdup("Failed to allocate row pointers");
+        return -1;
+    }
+    
+    // Set up pointers to each record in the buffer
+    for (int i = 0; i < total_results; i++) {
+        row_pointers[i] = raw_results_buffer + (i * record_size);
+    }
+    
     // Set result data
-    result->rows = (void**)results_buffer;
+    result->rows = row_pointers;
     result->row_count = total_results;
     result->success = true;
-    result->row_format = ROW_FORMAT_DIRECT; // Or ROW_FORMAT_POINTER_ARRAY depending on how your kernel returns data
+    result->raw_data_buffer = raw_results_buffer; // Store the buffer for later freeing
+    result->row_format = ROW_FORMAT_DIRECT;
+    
+    // Store the raw buffer for later freeing - if available in your struct
+    // If raw_data_buffer is not in your QueryResult struct, you'll need to add it
+    // or manage this memory differently
+    #ifdef QUERY_RESULT_HAS_RAW_DATA_BUFFER
+    result->raw_data_buffer = raw_results_buffer;
+    #endif
     
     // Cleanup
     unload_kernel(&loaded_kernel);

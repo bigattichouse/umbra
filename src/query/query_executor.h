@@ -25,6 +25,7 @@ typedef struct {
     bool success;               /**< Whether query succeeded */
     char* error_message;        /**< Error message if failed */
     RowFormat row_format;       /**< Format of row data */
+    void* raw_data_buffer;      /**< Raw data buffer (for freeing) */
 } QueryResult;
 
 /**

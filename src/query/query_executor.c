@@ -37,6 +37,7 @@ static QueryResult* create_query_result(void) {
     result->success = false;
     result->error_message = NULL;
     result->row_format = ROW_FORMAT_DIRECT; // Default to direct format
+    result->raw_data_buffer = NULL; // Initialize new field
     return result;
 }
 
@@ -510,37 +511,32 @@ QueryResult* execute_query(const char* sql, const char* base_dir) {
 void free_query_result(QueryResult* result) {
     if (!result) return;
     
-    // Free rows - but be careful about what we're freeing
+    // Free rows - array of pointers
     if (result->rows) {
-        // For SELECT results, the row data might be pointers into loaded pages
-        // which shouldn't be freed individually
-        // Only free the rows array itself, not the individual row data
-        
-        // However, for INSERT/UPDATE/DELETE results, we do allocate the row data
-        // Check the statement type based on the schema
-        if (result->result_schema && 
-            result->result_schema->column_count == 1 &&
-            strcmp(result->result_schema->columns[0].name, "rows_affected") == 0) {
-            // This is an INSERT/UPDATE/DELETE result - free the individual rows
-            for (int i = 0; i < result->row_count; i++) {
-                free(result->rows[i]);
-            }
-        }
-        // Always free the rows array itself
         free(result->rows);
+        result->rows = NULL;
+    }
+    
+    // Free raw data buffer if it exists
+    if (result->raw_data_buffer) {
+        free(result->raw_data_buffer);
+        result->raw_data_buffer = NULL;
     }
     
     // Free schema
     if (result->result_schema) {
         free_table_schema(result->result_schema);
+        result->result_schema = NULL;
     }
     
     // Free error message
-    free(result->error_message);
+    if (result->error_message) {
+        free(result->error_message);
+        result->error_message = NULL;
+    }
     
     free(result);
 }
-
 /**
  * @brief Print query result to stdout
  */
