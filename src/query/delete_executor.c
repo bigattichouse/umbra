@@ -82,7 +82,7 @@ static GeneratedKernel* generate_delete_kernel(const DeleteStatement* stmt,
 
 /**
  * @brief Physically delete records from a data file
- */
+ */ 
 static int delete_records_from_file(const char* data_path, const TableSchema* schema, 
                                    void** matches, int match_count) {
     if (match_count == 0) {
@@ -92,11 +92,20 @@ static int delete_records_from_file(const char* data_path, const TableSchema* sc
     // Extract UUIDs from matching records for easy comparison
     // Using record_access.c function instead of local implementation
     char** match_uuids = malloc(match_count * sizeof(char*));
+    if (!match_uuids) {
+        fprintf(stderr, "Failed to allocate memory for UUIDs\n");
+        return -1;
+    }
+    
+    // Extract UUIDs with better error handling
     for (int i = 0; i < match_count; i++) {
         match_uuids[i] = get_uuid_from_record(matches[i], schema);
-        #ifdef DEBUG
-        fprintf(stderr, "[DEBUG] Matching UUID %d: %s\n", i, match_uuids[i] ? match_uuids[i] : "NULL");
-        #endif
+        
+        if (!match_uuids[i]) {
+            #ifdef DEBUG
+            fprintf(stderr, "[DEBUG] Failed to get UUID for record %d\n", i);
+            #endif
+        }
     }
     
     // Open the file for reading
@@ -118,8 +127,47 @@ static int delete_records_from_file(const char* data_path, const TableSchema* sc
     char buffer[4096];
     
     while (fgets(buffer, sizeof(buffer), read_file)) {
-        lines = realloc(lines, (line_count + 1) * sizeof(char*));
+        char** new_lines = realloc(lines, (line_count + 1) * sizeof(char*));
+        if (!new_lines) {
+            fprintf(stderr, "Memory allocation failed while reading file\n");
+            
+            // Clean up already allocated lines
+            for (int i = 0; i < line_count; i++) {
+                free(lines[i]);
+            }
+            free(lines);
+            
+            // Clean up UUIDs
+            for (int i = 0; i < match_count; i++) {
+                free(match_uuids[i]);
+            }
+            free(match_uuids);
+            
+            fclose(read_file);
+            return -1;
+        }
+        
+        lines = new_lines;
         lines[line_count] = strdup(buffer);
+        if (!lines[line_count]) {
+            fprintf(stderr, "Memory allocation failed for line %d\n", line_count);
+            
+            // Clean up already allocated lines
+            for (int i = 0; i < line_count; i++) {
+                free(lines[i]);
+            }
+            free(lines);
+            
+            // Clean up UUIDs
+            for (int i = 0; i < match_count; i++) {
+                free(match_uuids[i]);
+            }
+            free(match_uuids);
+            
+            fclose(read_file);
+            return -1;
+        }
+        
         line_count++;
     }
     
@@ -139,7 +187,26 @@ static int delete_records_from_file(const char* data_path, const TableSchema* sc
         // Check if this line represents a record
         size_t len = strlen(lines[i]);
         if (len >= 3 && lines[i][len-3] == '}' && lines[i][len-2] == ',' && lines[i][len-1] == '\n') {
-            record_lines = realloc(record_lines, (record_count + 1) * sizeof(RecordLine));
+            RecordLine* new_record_lines = realloc(record_lines, (record_count + 1) * sizeof(RecordLine));
+            if (!new_record_lines) {
+                fprintf(stderr, "Memory allocation failed for record lines\n");
+                
+                // Clean up
+                free(record_lines);
+                for (int j = 0; j < line_count; j++) {
+                    free(lines[j]);
+                }
+                free(lines);
+                
+                for (int j = 0; j < match_count; j++) {
+                    free(match_uuids[j]);
+                }
+                free(match_uuids);
+                
+                return -1;
+            }
+            
+            record_lines = new_record_lines;
             record_lines[record_count].line_index = i;
             record_lines[record_count].should_delete = false;
             record_count++;
@@ -384,8 +451,14 @@ DeleteResult* execute_delete(const DeleteStatement* stmt, const char* base_dir) 
                     kernel_result_count, page_num);
             #endif
             
+            if (kernel_result_count > page_records) {
+                fprintf(stderr, "Warning: Found more matching records (%d) than expected (%d)\n", 
+                        kernel_result_count, page_records);
+                kernel_result_count = page_records; // Truncate to avoid overflow
+            }
+
             // Store pointers to matches
-            for (int i = 0; i < kernel_result_count; i++) {
+            for (int i = 0; i < kernel_result_count && match_count < page_records; i++) {
                 matches[match_count++] = (char*)kernel_results + (i * struct_size);
             }
             

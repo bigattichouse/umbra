@@ -23,9 +23,12 @@ void parser_set_error(Parser* parser, const char* format, ...) {
 /**
  * @brief Check if current token matches expected type
  */
+/**
+ * @brief Check if current token matches expected type
+ */
 bool match(Parser* parser, TokenType type) {
     if (parser->current_token.type == type) {
-        // Use token_free to free the current token
+        // Free the value before getting the next token
         if (parser->current_token.value) {
             free(parser->current_token.value);
             parser->current_token.value = NULL;
@@ -39,8 +42,14 @@ bool match(Parser* parser, TokenType type) {
         parser->current_token.line = next_token.line;
         parser->current_token.column = next_token.column;
         
-        // Take ownership of the token value instead of duplicating
-        parser->current_token.value = next_token.value;
+        // Handle the value field carefully to avoid leaks
+        if (next_token.value) {
+            // Create a deep copy of the value
+            parser->current_token.value = strdup(next_token.value);
+            // The lexer will free next_token.value internally
+        } else {
+            parser->current_token.value = NULL;
+        }
         
         return true;
     }

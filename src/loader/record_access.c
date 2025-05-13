@@ -349,21 +349,31 @@ void* get_field_by_index(void* record, const TableSchema* schema, int col_idx) {
         return NULL;
     }
     
-    #ifdef DEBUG
-    fprintf(stderr, "[DEBUG] Accessing field at index %d in table %s\n", 
-            col_idx, schema->name);
-    #endif
-    
-    // For simple, direct field access when dealing with a struct
-    // This is a simplified approach that directly returns the record pointer
-    // when working with a results buffer from kernel execution
-    if (col_idx == 0 && schema->column_count > 0) {
-        return record;
-    }
-    
-    // Calculate proper field offset
+    // Calculate proper field offset for ALL fields, including the first one (UUID)
     size_t offset = 0;
     
+    // If we're accessing the first field specifically, we need to calculate its offset properly
+    // rather than just returning the record pointer directly
+    
+    // Get alignment for target column
+    const ColumnDefinition* target_col = &schema->columns[col_idx];
+    size_t target_alignment = 1;
+    
+    switch (target_col->type) {
+        case TYPE_INT: target_alignment = __alignof__(int); break;
+        case TYPE_FLOAT: target_alignment = __alignof__(double); break;
+        case TYPE_BOOLEAN: target_alignment = __alignof__(bool); break;
+        case TYPE_DATE: target_alignment = __alignof__(time_t); break;
+        case TYPE_VARCHAR:
+        case TYPE_TEXT: target_alignment = 1; break;
+        default: 
+            #ifdef DEBUG
+            fprintf(stderr, "[DEBUG] Unknown target field type: %d\n", target_col->type);
+            #endif
+            return NULL;
+    }
+    
+    // Calculate offsets for all fields up to the target field
     for (int i = 0; i < col_idx; i++) {
         const ColumnDefinition* col = &schema->columns[i];
         size_t field_size = 0;
@@ -387,12 +397,10 @@ void* get_field_by_index(void* record, const TableSchema* schema, int col_idx) {
                 alignment = __alignof__(time_t);
                 break;
             case TYPE_VARCHAR:
-                // VARCHAR fields are inline char arrays, not pointers
                 field_size = col->length + 1;  // Add space for null terminator
                 alignment = 1;  // Char arrays are byte-aligned
                 break;
             case TYPE_TEXT:
-                // TEXT fields are typically larger inline arrays
                 field_size = 4096;  // Fixed size for TEXT
                 alignment = 1;
                 break;
@@ -409,23 +417,6 @@ void* get_field_by_index(void* record, const TableSchema* schema, int col_idx) {
     }
     
     // Align offset for the target field
-    const ColumnDefinition* target_col = &schema->columns[col_idx];
-    size_t target_alignment = 1;
-    
-    switch (target_col->type) {
-        case TYPE_INT: target_alignment = __alignof__(int); break;
-        case TYPE_FLOAT: target_alignment = __alignof__(double); break;
-        case TYPE_BOOLEAN: target_alignment = __alignof__(bool); break;
-        case TYPE_DATE: target_alignment = __alignof__(time_t); break;
-        case TYPE_VARCHAR:
-        case TYPE_TEXT: target_alignment = 1; break;
-        default: 
-            #ifdef DEBUG
-            fprintf(stderr, "[DEBUG] Unknown target field type: %d\n", target_col->type);
-            #endif
-            return NULL;
-    }
-    
     offset = (offset + target_alignment - 1) & ~(target_alignment - 1);
     
     #ifdef DEBUG
@@ -435,6 +426,7 @@ void* get_field_by_index(void* record, const TableSchema* schema, int col_idx) {
     
     return (char*)record + offset;
 }
+
 /**
  * @brief Get field pointer by name
  */
@@ -467,8 +459,7 @@ char* get_uuid_from_record(void* record, const TableSchema* schema) {
         return NULL;
     }
     
-    // Use the proper field access function to get the UUID field
-    // _UUID_COLUMN_INDEX is defined as 0 in record_access.c
+    // Get the UUID field
     void* uuid_field = get_field_by_index(record, schema, _UUID_COLUMN_INDEX);
     if (!uuid_field) {
         return NULL;
@@ -476,7 +467,17 @@ char* get_uuid_from_record(void* record, const TableSchema* schema) {
     
     // Validate the UUID string exists and isn't empty
     const char* uuid_str = (const char*)uuid_field;
+    
     if (!uuid_str || *uuid_str == '\0') {
+        return NULL;
+    }
+    
+    // Check if the string looks like a valid UUID (basic check)
+    size_t len = strnlen(uuid_str, 37);  // 36 chars for UUID + 1 for null
+    if (len > 36) {  // UUID is 36 chars (with hyphens)
+        #ifdef DEBUG
+        fprintf(stderr, "[DEBUG] Invalid UUID string: length %zu > 36\n", len);
+        #endif
         return NULL;
     }
     

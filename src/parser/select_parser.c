@@ -40,10 +40,11 @@ void parser_init(Parser* parser, Lexer* lexer) {
  * @brief Free parser resources
  */
 void parser_free(Parser* parser) {
-    if (parser) { 
-        token_free(&parser->current_token); 
-        // Set to NULL after freeing to prevent double-free
-        parser->current_token.value = NULL;
+    if (parser) {  
+        if (parser->current_token.value) {
+            free(parser->current_token.value);
+            parser->current_token.value = NULL;
+        }
     }
 }
 
